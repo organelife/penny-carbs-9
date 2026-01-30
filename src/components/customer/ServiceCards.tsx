@@ -55,7 +55,7 @@ const ServiceCards: React.FC = () => {
   };
 
   return (
-    <section className="px-4 py-6">
+    <section className="px-4 py-6 bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-orange-950/30 dark:via-amber-950/20 dark:to-yellow-950/10">
       <h2 className="mb-4 font-display text-lg font-semibold text-foreground">
         What are you looking for?
       </h2>

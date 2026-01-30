@@ -28,18 +28,21 @@ const Index: React.FC = () => {
           serviceType="indoor_events" 
           title="🎉 Popular for Events" 
           gradientClass="text-gradient-events"
+          bgGradient="bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50 dark:from-purple-950/30 dark:via-pink-950/20 dark:to-rose-950/10"
         />
         
         <PopularItems 
           serviceType="cloud_kitchen" 
           title="👨‍🍳 Most Ordered from Cloud Kitchen" 
           gradientClass="text-gradient-kitchen"
+          bgGradient="bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50 dark:from-blue-950/30 dark:via-cyan-950/20 dark:to-teal-950/10"
         />
         
         <PopularItems 
           serviceType="homemade" 
           title="🏠 Homemade Favorites" 
           gradientClass="text-gradient-homemade"
+          bgGradient="bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950/30 dark:via-emerald-950/20 dark:to-teal-950/10"
         />
       </main>
 

@@ -14,6 +14,7 @@ interface PopularItemsProps {
   title: string;
   limit?: number;
   gradientClass?: string;
+  bgGradient?: string;
 }
 
 const serviceTypeLabels: Record<ServiceType, string> = {
@@ -22,7 +23,7 @@ const serviceTypeLabels: Record<ServiceType, string> = {
   homemade: 'Home Fresh',
 };
 
-const PopularItems: React.FC<PopularItemsProps> = ({ serviceType, title, limit = 6, gradientClass }) => {
+const PopularItems: React.FC<PopularItemsProps> = ({ serviceType, title, limit = 6, gradientClass, bgGradient }) => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const [items, setItems] = useState<FoodItemWithImages[]>([]);
@@ -83,7 +84,7 @@ const PopularItems: React.FC<PopularItemsProps> = ({ serviceType, title, limit =
   }
 
   return (
-    <section className="py-4">
+    <section className={`py-4 ${bgGradient || ''}`}>
       <div className="mb-4 flex items-center justify-between px-4">
         <h2 className={`font-display text-lg font-semibold ${gradientClass || 'text-foreground'}`}>{title}</h2>
         <Button
