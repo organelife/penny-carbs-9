@@ -501,7 +501,10 @@ const AdminItems: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent className="bg-popover">
                   {categories
-                    .filter(c => c.service_type === formData.service_type)
+                    .filter(c => 
+                      c.service_types?.includes(formData.service_type) || 
+                      (c.service_types?.length === 0)
+                    )
                     .map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         {cat.name}
