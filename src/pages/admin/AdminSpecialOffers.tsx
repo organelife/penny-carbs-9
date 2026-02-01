@@ -16,11 +16,15 @@ import {
 import { Label } from '@/components/ui/label';
 import AdminNavbar from '@/components/admin/AdminNavbar';
 import ImageUpload from '@/components/admin/ImageUpload';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Plus, 
   Edit2, 
   Trash2,
-  GripVertical
+  GripVertical,
+  Star,
+  Percent
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
@@ -35,10 +39,22 @@ interface SpecialOffer {
   is_active: boolean;
 }
 
+interface FeaturedItem {
+  id: string;
+  name: string;
+  price: number;
+  discount_percent: number;
+  discount_amount: number;
+  is_featured: boolean;
+  is_available: boolean;
+  primary_image?: string;
+}
+
 const AdminSpecialOffers: React.FC = () => {
   const { role } = useAuth();
   
   const [offers, setOffers] = useState<SpecialOffer[]>([]);
+  const [featuredItems, setFeaturedItems] = useState<FeaturedItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // Dialog state
@@ -58,6 +74,7 @@ const AdminSpecialOffers: React.FC = () => {
 
   useEffect(() => {
     fetchOffers();
+    fetchFeaturedItems();
   }, []);
 
   const fetchOffers = async () => {
@@ -78,6 +95,36 @@ const AdminSpecialOffers: React.FC = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchFeaturedItems = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('food_items')
+        .select(`
+          id,
+          name,
+          price,
+          discount_percent,
+          discount_amount,
+          is_featured,
+          is_available,
+          images:food_item_images(image_url, is_primary)
+        `)
+        .eq('is_featured', true)
+        .order('name');
+
+      if (error) throw error;
+      
+      const itemsWithImages = (data || []).map(item => ({
+        ...item,
+        primary_image: item.images?.find((img: any) => img.is_primary)?.image_url || item.images?.[0]?.image_url
+      }));
+      
+      setFeaturedItems(itemsWithImages);
+    } catch (error) {
+      console.error('Error fetching featured items:', error);
     }
   };
 
@@ -234,84 +281,152 @@ const AdminSpecialOffers: React.FC = () => {
       </div>
 
       <main className="p-4">
-        {isLoading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-20 rounded-xl" />
-            ))}
-          </div>
-        ) : offers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <span className="text-6xl">🏷️</span>
-            <h2 className="mt-4 text-lg font-semibold">No offers yet</h2>
-            <p className="text-sm text-muted-foreground">Create your first special offer</p>
-            <Button className="mt-4" onClick={() => handleOpenDialog()}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Offer
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {offers.map((offer) => (
-              <Card key={offer.id}>
-                <CardContent className="flex items-center gap-4 p-4">
-                  <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab" />
-                  
-                  <div 
-                    className="h-14 w-20 flex-shrink-0 overflow-hidden rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: offer.background_color || '#16a34a' }}
-                  >
-                    {offer.image_url ? (
-                      <img
-                        src={offer.image_url}
-                        alt={offer.title}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-white text-xs font-medium text-center px-1">
-                        {offer.title.substring(0, 10)}
-                      </span>
-                    )}
-                  </div>
+        <Tabs defaultValue="offers" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="offers">Manual Offers ({offers.length})</TabsTrigger>
+            <TabsTrigger value="featured">
+              <Star className="h-4 w-4 mr-1.5" />
+              Featured Items ({featuredItems.length})
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="offers">
+            {isLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-20 rounded-xl" />
+                ))}
+              </div>
+            ) : offers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <span className="text-6xl">🏷️</span>
+                <h2 className="mt-4 text-lg font-semibold">No offers yet</h2>
+                <p className="text-sm text-muted-foreground">Create your first special offer</p>
+                <Button className="mt-4" onClick={() => handleOpenDialog()}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Offer
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {offers.map((offer) => (
+                  <Card key={offer.id}>
+                    <CardContent className="flex items-center gap-4 p-4">
+                      <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab" />
+                      
+                      <div 
+                        className="h-14 w-20 flex-shrink-0 overflow-hidden rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: offer.background_color || '#16a34a' }}
+                      >
+                        {offer.image_url ? (
+                          <img
+                            src={offer.image_url}
+                            alt={offer.title}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-white text-xs font-medium text-center px-1">
+                            {offer.title.substring(0, 10)}
+                          </span>
+                        )}
+                      </div>
 
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-medium truncate">{offer.title}</h3>
-                    {offer.subtitle && (
-                      <p className="text-sm text-muted-foreground truncate">
-                        {offer.subtitle}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      {offer.is_active ? 'Active' : 'Inactive'}
-                    </p>
-                  </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-medium truncate">{offer.title}</h3>
+                        {offer.subtitle && (
+                          <p className="text-sm text-muted-foreground truncate">
+                            {offer.subtitle}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          {offer.is_active ? 'Active' : 'Inactive'}
+                        </p>
+                      </div>
 
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={offer.is_active}
-                      onCheckedChange={() => handleToggleActive(offer)}
-                    />
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => handleOpenDialog(offer)}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      className="text-destructive"
-                      onClick={() => handleDeleteOffer(offer)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={offer.is_active}
+                          onCheckedChange={() => handleToggleActive(offer)}
+                        />
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleOpenDialog(offer)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="text-destructive"
+                          onClick={() => handleDeleteOffer(offer)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="featured">
+            {featuredItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <Star className="h-16 w-16 text-muted-foreground/30" />
+                <h2 className="mt-4 text-lg font-semibold">No featured items</h2>
+                <p className="text-sm text-muted-foreground text-center max-w-xs">
+                  Go to Items → Edit an item → Enable "Featured Item" with a discount
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {featuredItems.map((item) => (
+                  <Card key={item.id}>
+                    <CardContent className="flex items-center gap-4 p-4">
+                      <Star className="h-5 w-5 text-yellow-500 fill-yellow-500 flex-shrink-0" />
+                      
+                      <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-secondary">
+                        {item.primary_image ? (
+                          <img
+                            src={item.primary_image}
+                            alt={item.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-xl">🍽️</div>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-medium truncate">{item.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-muted-foreground">₹{item.price}</p>
+                          {(item.discount_percent > 0 || item.discount_amount > 0) && (
+                            <Badge variant="destructive" className="text-xs">
+                              <Percent className="h-3 w-3 mr-0.5" />
+                              {item.discount_percent > 0 
+                                ? `${item.discount_percent}% off` 
+                                : `₹${item.discount_amount} off`}
+                            </Badge>
+                          )}
+                        </div>
+                        <Badge variant={item.is_available ? 'default' : 'secondary'} className="mt-1">
+                          {item.is_available ? 'Available' : 'Unavailable'}
+                        </Badge>
+                      </div>
+
+                      <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
+                        Auto-listed
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Add/Edit Dialog */}

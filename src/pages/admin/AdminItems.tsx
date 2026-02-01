@@ -32,7 +32,9 @@ import {
   Search, 
   Edit2, 
   Trash2,
-  Leaf
+  Leaf,
+  Star,
+  Percent
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import AdminNavbar from '@/components/admin/AdminNavbar';
@@ -71,6 +73,9 @@ const AdminItems: React.FC = () => {
     preparation_time_minutes: '',
     available_all_panchayats: true,
     available_panchayat_ids: [] as string[],
+    discount_percent: '',
+    discount_amount: '',
+    is_featured: false,
   });
 
   const isAdmin = role === 'super_admin' || role === 'admin';
@@ -148,6 +153,9 @@ const AdminItems: React.FC = () => {
         service_types?: string[]; 
         available_all_panchayats?: boolean;
         available_panchayat_ids?: string[];
+        discount_percent?: number;
+        discount_amount?: number;
+        is_featured?: boolean;
       };
       const serviceTypesArray = itemWithExtras.service_types?.length 
         ? itemWithExtras.service_types 
@@ -164,6 +172,9 @@ const AdminItems: React.FC = () => {
         preparation_time_minutes: item.preparation_time_minutes?.toString() || '',
         available_all_panchayats: itemWithExtras.available_all_panchayats ?? true,
         available_panchayat_ids: itemWithExtras.available_panchayat_ids || [],
+        discount_percent: itemWithExtras.discount_percent?.toString() || '',
+        discount_amount: itemWithExtras.discount_amount?.toString() || '',
+        is_featured: itemWithExtras.is_featured ?? false,
       });
     } else {
       setEditingItem(null);
@@ -180,6 +191,9 @@ const AdminItems: React.FC = () => {
         preparation_time_minutes: '',
         available_all_panchayats: true,
         available_panchayat_ids: [],
+        discount_percent: '',
+        discount_amount: '',
+        is_featured: false,
       });
     }
     setIsDialogOpen(true);
@@ -219,6 +233,9 @@ const AdminItems: React.FC = () => {
           : null,
         available_all_panchayats: formData.available_all_panchayats,
         available_panchayat_ids: formData.available_all_panchayats ? [] : formData.available_panchayat_ids,
+        discount_percent: formData.discount_percent ? parseFloat(formData.discount_percent) : 0,
+        discount_amount: formData.discount_amount ? parseFloat(formData.discount_amount) : 0,
+        is_featured: formData.is_featured,
       };
 
       if (editingItem) {
@@ -411,10 +428,23 @@ const AdminItems: React.FC = () => {
                         {item.is_vegetarian && (
                           <Leaf className="h-4 w-4 text-success flex-shrink-0" />
                         )}
+                        {(item as any).is_featured && (
+                          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
+                        )}
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        ₹{item.price}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-muted-foreground">
+                          ₹{item.price}
+                        </p>
+                        {((item as any).discount_percent > 0 || (item as any).discount_amount > 0) && (
+                          <Badge variant="destructive" className="text-xs">
+                            <Percent className="h-3 w-3 mr-0.5" />
+                            {(item as any).discount_percent > 0 
+                              ? `${(item as any).discount_percent}% off` 
+                              : `₹${(item as any).discount_amount} off`}
+                          </Badge>
+                        )}
+                      </div>
                       <div className="mt-1 flex flex-wrap items-center gap-1">
                         {((item as any).service_types?.length ? (item as any).service_types : [item.service_type]).map((st: string) => (
                           <Badge key={st} variant="outline" className="text-xs">
@@ -424,6 +454,11 @@ const AdminItems: React.FC = () => {
                         <Badge variant={item.is_available ? 'default' : 'secondary'}>
                           {item.is_available ? 'Available' : 'Unavailable'}
                         </Badge>
+                        {(item as any).is_featured && (
+                          <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
+                            Featured
+                          </Badge>
+                        )}
                       </div>
                     </div>
 
@@ -629,6 +664,55 @@ const AdminItems: React.FC = () => {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Discount Section */}
+            <div className="rounded-lg border border-dashed p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <Percent className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm font-medium">Discount & Featured</Label>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="discount_percent">Discount %</Label>
+                  <Input
+                    id="discount_percent"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={formData.discount_percent}
+                    onChange={(e) => setFormData({ ...formData, discount_percent: e.target.value })}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="discount_amount">Discount ₹</Label>
+                  <Input
+                    id="discount_amount"
+                    type="number"
+                    min="0"
+                    value={formData.discount_amount}
+                    onChange={(e) => setFormData({ ...formData, discount_amount: e.target.value })}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-md bg-yellow-500/10 p-3">
+                <div className="flex items-center gap-2">
+                  <Star className="h-4 w-4 text-yellow-500" />
+                  <div>
+                    <Label htmlFor="featured" className="cursor-pointer">Featured Item</Label>
+                    <p className="text-xs text-muted-foreground">Show in Special Offers</p>
+                  </div>
+                </div>
+                <Switch
+                  id="featured"
+                  checked={formData.is_featured}
+                  onCheckedChange={(v) => setFormData({ ...formData, is_featured: v })}
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-between">

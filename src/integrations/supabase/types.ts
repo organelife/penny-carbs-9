@@ -455,8 +455,11 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          discount_amount: number | null
+          discount_percent: number | null
           id: string
           is_available: boolean
+          is_featured: boolean | null
           is_vegetarian: boolean
           max_images: number
           min_images: number
@@ -476,8 +479,11 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
           id?: string
           is_available?: boolean
+          is_featured?: boolean | null
           is_vegetarian?: boolean
           max_images?: number
           min_images?: number
@@ -497,8 +503,11 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
           id?: string
           is_available?: boolean
+          is_featured?: boolean | null
           is_vegetarian?: boolean
           max_images?: number
           min_images?: number
