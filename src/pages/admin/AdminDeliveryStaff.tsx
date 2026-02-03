@@ -19,7 +19,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Truck, Phone, MapPin, CheckCircle, XCircle, Bike, Car, Plus, Search, User, Loader2, X } from 'lucide-react';
+import { 
+  ArrowLeft, Truck, Phone, MapPin, CheckCircle, XCircle, 
+  Bike, Car, Plus, Search, User, Loader2, X, Pencil, Trash2, Settings 
+} from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { DeliveryStaff } from '@/types/delivery';
 
@@ -54,6 +57,18 @@ const AdminDeliveryStaff: React.FC = () => {
     staff_type: 'registered_partner' as 'fixed_salary' | 'registered_partner',
   });
 
+  // Edit/Manage dialog state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<DeliveryStaff | null>(null);
+  const [editPanchayats, setEditPanchayats] = useState<string[]>([]);
+  const [editWards, setEditWards] = useState<number[]>([]);
+  const [editVehicleType, setEditVehicleType] = useState('motorcycle');
+  const [editVehicleNumber, setEditVehicleNumber] = useState('');
+  const [editStaffType, setEditStaffType] = useState<'fixed_salary' | 'registered_partner'>('registered_partner');
+
+  // Delete confirmation
+  const [deleteConfirmStaff, setDeleteConfirmStaff] = useState<DeliveryStaff | null>(null);
+
   // Fetch panchayats for selection
   const { data: panchayats } = useQuery({
     queryKey: ['panchayats'],
@@ -68,14 +83,8 @@ const AdminDeliveryStaff: React.FC = () => {
     },
   });
   
-  // Multi-panchayat and multi-ward selection
+  // Multi-panchayat selection for Add dialog
   const [selectedPanchayats, setSelectedPanchayats] = useState<string[]>([]);
-  const [selectedWards, setSelectedWards] = useState<number[]>([]);
-
-  // Get ward count for selected panchayats (use max ward count)
-  const maxWardCount = panchayats
-    ?.filter(p => selectedPanchayats.includes(p.id))
-    .reduce((max, p) => Math.max(max, p.ward_count || 25), 0) || 25;
 
   const togglePanchayat = (panchayatId: string) => {
     setSelectedPanchayats(prev => 
@@ -85,20 +94,43 @@ const AdminDeliveryStaff: React.FC = () => {
     );
   };
 
-  const toggleWard = (ward: number) => {
-    setSelectedWards(prev =>
+  // Edit dialog helpers
+  const toggleEditPanchayat = (panchayatId: string) => {
+    setEditPanchayats(prev => 
+      prev.includes(panchayatId) 
+        ? prev.filter(id => id !== panchayatId)
+        : [...prev, panchayatId]
+    );
+  };
+
+  const toggleEditWard = (ward: number) => {
+    setEditWards(prev =>
       prev.includes(ward)
         ? prev.filter(w => w !== ward)
         : [...prev, ward]
     );
   };
 
-  const selectAllWards = () => {
-    setSelectedWards(Array.from({ length: maxWardCount }, (_, i) => i + 1));
+  const editMaxWardCount = panchayats
+    ?.filter(p => editPanchayats.includes(p.id))
+    .reduce((max, p) => Math.max(max, p.ward_count || 25), 0) || 25;
+
+  const selectAllEditWards = () => {
+    setEditWards(Array.from({ length: editMaxWardCount }, (_, i) => i + 1));
   };
 
-  const clearAllWards = () => {
-    setSelectedWards([]);
+  const clearAllEditWards = () => {
+    setEditWards([]);
+  };
+
+  const openEditDialog = (staff: DeliveryStaff) => {
+    setEditingStaff(staff);
+    setEditPanchayats(staff.assigned_panchayat_ids || []);
+    setEditWards(staff.assigned_wards || []);
+    setEditVehicleType(staff.vehicle_type);
+    setEditVehicleNumber(staff.vehicle_number || '');
+    setEditStaffType(staff.staff_type);
+    setIsEditDialogOpen(true);
   };
 
   // Search users by mobile
@@ -126,7 +158,7 @@ const AdminDeliveryStaff: React.FC = () => {
     }
   };
 
-  // Add delivery staff mutation
+  // Add delivery staff mutation (no ward selection)
   const addStaffMutation = useMutation({
     mutationFn: async () => {
       if (!selectedUser) throw new Error('No user selected');
@@ -160,7 +192,7 @@ const AdminDeliveryStaff: React.FC = () => {
           staff_type: newStaffData.staff_type,
           panchayat_id: selectedPanchayats[0] || null,
           assigned_panchayat_ids: selectedPanchayats,
-          assigned_wards: selectedWards,
+          assigned_wards: [], // No ward selection during creation
           is_approved: true,
           approved_at: new Date().toISOString(),
         });
@@ -186,13 +218,80 @@ const AdminDeliveryStaff: React.FC = () => {
     },
   });
 
+  // Update delivery staff mutation
+  const updateStaffMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingStaff) throw new Error('No staff selected');
+      
+      const { error } = await supabase
+        .from('delivery_staff')
+        .update({
+          vehicle_type: editVehicleType,
+          vehicle_number: editVehicleNumber || null,
+          staff_type: editStaffType,
+          panchayat_id: editPanchayats[0] || null,
+          assigned_panchayat_ids: editPanchayats,
+          assigned_wards: editWards,
+        })
+        .eq('id', editingStaff.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-delivery-approved'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-delivery-pending'] });
+      toast({ title: "Staff updated successfully" });
+      setIsEditDialogOpen(false);
+      setEditingStaff(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Delete delivery staff mutation
+  const deleteStaffMutation = useMutation({
+    mutationFn: async (staffId: string) => {
+      // First get user_id to remove role
+      const { data: staffData } = await supabase
+        .from('delivery_staff')
+        .select('user_id')
+        .eq('id', staffId)
+        .single();
+
+      const { error } = await supabase
+        .from('delivery_staff')
+        .delete()
+        .eq('id', staffId);
+      
+      if (error) throw error;
+
+      // Remove delivery_staff role
+      if (staffData?.user_id) {
+        await supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', staffData.user_id)
+          .eq('role', 'delivery_staff');
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-delivery-approved'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-delivery-pending'] });
+      toast({ title: "Staff deleted successfully" });
+      setDeleteConfirmStaff(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
+    },
+  });
+
   const resetAddForm = () => {
     setSearchMobile('');
     setSearchResults([]);
     setSelectedUser(null);
     setNewStaffData({ vehicle_type: 'motorcycle', vehicle_number: '', staff_type: 'registered_partner' });
     setSelectedPanchayats([]);
-    setSelectedWards([]);
   };
 
   const { data: pendingStaff, isLoading: pendingLoading } = useQuery({
@@ -406,10 +505,25 @@ const AdminDeliveryStaff: React.FC = () => {
         )}
 
         {showActions && !isPending && (
-          <div className="mt-3 flex justify-end">
+          <div className="mt-3 flex justify-end gap-2">
             <Button
               size="sm"
-              variant={staff.is_active ? "destructive" : "default"}
+              variant="outline"
+              onClick={() => openEditDialog(staff)}
+            >
+              <Settings className="h-4 w-4 mr-1" />
+              Manage
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => setDeleteConfirmStaff(staff)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant={staff.is_active ? "secondary" : "default"}
               onClick={() => toggleStatus(staff.id, staff.is_active)}
             >
               {staff.is_active ? "Deactivate" : "Activate"}
@@ -561,45 +675,10 @@ const AdminDeliveryStaff: React.FC = () => {
                           })}
                         </div>
                       )}
+                      <p className="text-xs text-muted-foreground">
+                        Ward assignments can be configured after adding the staff.
+                      </p>
                     </div>
-
-                    {selectedPanchayats.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label>Wards (Select multiple)</Label>
-                          <div className="flex gap-2">
-                            <Button type="button" variant="outline" size="sm" onClick={selectAllWards}>
-                              Select All
-                            </Button>
-                            <Button type="button" variant="outline" size="sm" onClick={clearAllWards}>
-                              Clear
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="max-h-32 overflow-y-auto border rounded-md p-2">
-                          <div className="grid grid-cols-5 gap-1">
-                            {Array.from({ length: maxWardCount }, (_, i) => i + 1).map(ward => (
-                              <div
-                                key={ward}
-                                className={`flex items-center justify-center p-2 rounded cursor-pointer text-sm border transition-colors ${
-                                  selectedWards.includes(ward) 
-                                    ? 'bg-primary text-primary-foreground border-primary' 
-                                    : 'hover:bg-muted border-border'
-                                }`}
-                                onClick={() => toggleWard(ward)}
-                              >
-                                {ward}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        {selectedWards.length > 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            {selectedWards.length} ward(s) selected
-                          </p>
-                        )}
-                      </div>
-                    )}
 
                     <Button 
                       className="w-full" 
@@ -616,6 +695,168 @@ const AdminDeliveryStaff: React.FC = () => {
           </Dialog>
         </div>
       </header>
+
+      {/* Edit/Manage Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setEditingStaff(null); }}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Delivery Staff</DialogTitle>
+            <DialogDescription>
+              Update staff details, panchayats, and ward assignments
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingStaff && (
+            <div className="space-y-4 py-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium">{editingStaff.name}</p>
+                <p className="text-xs text-muted-foreground">{editingStaff.mobile_number}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Staff Type</Label>
+                <Select value={editStaffType} onValueChange={(v) => setEditStaffType(v as 'fixed_salary' | 'registered_partner')}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="registered_partner">Registered Partner</SelectItem>
+                    <SelectItem value="fixed_salary">Fixed Salary</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Vehicle Type</Label>
+                <Select value={editVehicleType} onValueChange={setEditVehicleType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bicycle">Bicycle</SelectItem>
+                    <SelectItem value="motorcycle">Motorcycle</SelectItem>
+                    <SelectItem value="scooter">Scooter</SelectItem>
+                    <SelectItem value="car">Car</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Vehicle Number (Optional)</Label>
+                <Input
+                  placeholder="KL-XX-XXXX"
+                  value={editVehicleNumber}
+                  onChange={(e) => setEditVehicleNumber(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Panchayats (Select multiple)</Label>
+                <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1">
+                  {panchayats?.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
+                      onClick={() => toggleEditPanchayat(p.id)}
+                    >
+                      <Checkbox
+                        checked={editPanchayats.includes(p.id)}
+                        onCheckedChange={() => toggleEditPanchayat(p.id)}
+                      />
+                      <span className="text-sm">{p.name}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">({p.ward_count} wards)</span>
+                    </div>
+                  ))}
+                </div>
+                {editPanchayats.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {editPanchayats.map(pId => {
+                      const p = panchayats?.find(x => x.id === pId);
+                      return p ? (
+                        <Badge key={pId} variant="secondary" className="flex items-center gap-1">
+                          {p.name}
+                          <X 
+                            className="h-3 w-3 cursor-pointer" 
+                            onClick={(e) => { e.stopPropagation(); toggleEditPanchayat(pId); }}
+                          />
+                        </Badge>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {editPanchayats.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Wards (Select multiple)</Label>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={selectAllEditWards}>
+                        Select All
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={clearAllEditWards}>
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="max-h-32 overflow-y-auto border rounded-md p-2">
+                    <div className="grid grid-cols-5 gap-1">
+                      {Array.from({ length: editMaxWardCount }, (_, i) => i + 1).map(ward => (
+                        <div
+                          key={ward}
+                          className={`flex items-center justify-center p-2 rounded cursor-pointer text-sm border transition-colors ${
+                            editWards.includes(ward) 
+                              ? 'bg-primary text-primary-foreground border-primary' 
+                              : 'hover:bg-muted border-border'
+                          }`}
+                          onClick={() => toggleEditWard(ward)}
+                        >
+                          {ward}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {editWards.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {editWards.length} ward(s) selected
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <Button 
+                className="w-full" 
+                onClick={() => updateStaffMutation.mutate()}
+                disabled={updateStaffMutation.isPending}
+              >
+                {updateStaffMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Save Changes
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteConfirmStaff} onOpenChange={(open) => { if (!open) setDeleteConfirmStaff(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Delivery Staff</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {deleteConfirmStaff?.name}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setDeleteConfirmStaff(null)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => deleteConfirmStaff && deleteStaffMutation.mutate(deleteConfirmStaff.id)}
+              disabled={deleteStaffMutation.isPending}
+            >
+              {deleteStaffMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <main className="container px-4 py-4">
         <Tabs defaultValue="pending" className="space-y-4">
