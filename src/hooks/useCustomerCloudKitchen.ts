@@ -154,6 +154,7 @@ export function useCustomerDivisionItems(divisionId: string | null) {
       if (!divisionId) return [];
 
       // Fetch dishes with their allocated cooks via cook_dishes table
+      // Using !inner join with filters directly in the select syntax
       const { data, error } = await supabase
         .from('cook_dishes')
         .select(`
@@ -179,16 +180,24 @@ export function useCustomerDivisionItems(divisionId: string | null) {
             is_available,
             food_item_images(id, image_url, is_primary)
           )
-        `)
-        .eq('food_items.cloud_kitchen_slot_id', divisionId)
-        .eq('food_items.is_available', true)
-        .eq('cooks.is_active', true)
-        .eq('cooks.is_available', true);
+        `);
 
       if (error) throw error;
 
+      // Filter in JavaScript since PostgREST has issues with .eq() on joined tables
+      const filteredData = (data || []).filter((row: any) => {
+        const foodItem = row.food_items;
+        const cook = row.cooks;
+        return (
+          foodItem.cloud_kitchen_slot_id === divisionId &&
+          foodItem.is_available === true &&
+          cook.is_active === true &&
+          cook.is_available === true
+        );
+      });
+
       // Transform the data to show each dish-cook combination as a separate item
-      const itemsWithCooks: CustomerCloudKitchenItem[] = (data || []).map((row: any) => ({
+      const itemsWithCooks: CustomerCloudKitchenItem[] = filteredData.map((row: any) => ({
         id: row.food_items.id,
         name: row.food_items.name,
         description: row.food_items.description,
