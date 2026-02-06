@@ -1,38 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { ArrowLeft, Search, Users, ChefHat, Truck } from 'lucide-react';
+import { Users, ChefHat, Truck } from 'lucide-react';
+import { toast } from 'sonner';
 import AdminNavbar from '@/components/admin/AdminNavbar';
+import UsersFilters from '@/components/admin/users/UsersFilters';
+import CustomersTable from '@/components/admin/users/CustomersTable';
+import CooksTable from '@/components/admin/users/CooksTable';
+import DeliveryStaffTable from '@/components/admin/users/DeliveryStaffTable';
+import EditUserDialog from '@/components/admin/users/EditUserDialog';
+import DeleteUserDialog from '@/components/admin/users/DeleteUserDialog';
+import { exportToCSV, exportToExcel } from '@/lib/exportUtils';
 
 const AdminUsers: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('customers');
+  const [selectedPanchayat, setSelectedPanchayat] = useState('all');
+  
+  // Edit/Delete dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUserType, setSelectedUserType] = useState<'customer' | 'cook' | 'delivery'>('customer');
+
+  // Fetch panchayats
+  const { data: panchayats = [] } = useQuery({
+    queryKey: ['panchayats'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('panchayats')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      return data;
+    }
+  });
 
   // Fetch customers (profiles)
-  const { data: customers, isLoading: customersLoading } = useQuery({
+  const { data: customers = [], isLoading: customersLoading } = useQuery({
     queryKey: ['admin-customers'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select(`
-          *,
-          panchayats(name)
-        `)
+        .select(`*, panchayats(name)`)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
@@ -40,15 +58,12 @@ const AdminUsers: React.FC = () => {
   });
 
   // Fetch cooks
-  const { data: cooks, isLoading: cooksLoading } = useQuery({
+  const { data: cooks = [], isLoading: cooksLoading } = useQuery({
     queryKey: ['admin-cooks-list'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('cooks')
-        .select(`
-          *,
-          panchayats(name)
-        `)
+        .select(`*, panchayats(name)`)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
@@ -56,52 +71,299 @@ const AdminUsers: React.FC = () => {
   });
 
   // Fetch delivery staff
-  const { data: deliveryStaff, isLoading: deliveryLoading } = useQuery({
+  const { data: deliveryStaff = [], isLoading: deliveryLoading } = useQuery({
     queryKey: ['admin-delivery-list'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('delivery_staff')
-        .select(`
-          *,
-          panchayats(name)
-        `)
+        .select(`*, panchayats(name)`)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
     }
   });
 
-  const filteredCustomers = customers?.filter(c =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.mobile_number.includes(searchTerm)
-  );
+  // Mutations
+  const updateCustomerMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          name: data.name,
+          mobile_number: data.mobile_number,
+          panchayat_id: data.panchayat_id,
+          is_active: data.is_active,
+        })
+        .eq('id', data.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-customers'] });
+      toast.success('Customer updated successfully');
+      setEditDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Failed to update customer: ' + error.message);
+    }
+  });
 
-  const filteredCooks = cooks?.filter(c =>
-    c.kitchen_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.mobile_number.includes(searchTerm)
-  );
+  const updateCookMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const { error } = await supabase
+        .from('cooks')
+        .update({
+          kitchen_name: data.kitchen_name,
+          mobile_number: data.mobile_number,
+          panchayat_id: data.panchayat_id,
+          is_active: data.is_active,
+        })
+        .eq('id', data.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-cooks-list'] });
+      toast.success('Cook updated successfully');
+      setEditDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Failed to update cook: ' + error.message);
+    }
+  });
 
-  const filteredDelivery = deliveryStaff?.filter(d =>
-    d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    d.mobile_number.includes(searchTerm)
-  );
+  const updateDeliveryMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const { error } = await supabase
+        .from('delivery_staff')
+        .update({
+          name: data.name,
+          mobile_number: data.mobile_number,
+          vehicle_type: data.vehicle_type,
+          panchayat_id: data.panchayat_id,
+          is_active: data.is_active,
+        })
+        .eq('id', data.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-delivery-list'] });
+      toast.success('Delivery staff updated successfully');
+      setEditDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Failed to update delivery staff: ' + error.message);
+    }
+  });
+
+  const deleteCustomerMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: false })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-customers'] });
+      toast.success('Customer deleted successfully');
+      setDeleteDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Failed to delete customer: ' + error.message);
+    }
+  });
+
+  const deleteCookMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('cooks')
+        .update({ is_active: false })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-cooks-list'] });
+      toast.success('Cook deleted successfully');
+      setDeleteDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Failed to delete cook: ' + error.message);
+    }
+  });
+
+  const deleteDeliveryMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('delivery_staff')
+        .update({ is_active: false })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-delivery-list'] });
+      toast.success('Delivery staff deleted successfully');
+      setDeleteDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Failed to delete delivery staff: ' + error.message);
+    }
+  });
+
+  // Filter functions
+  const filterBySearch = (items: any[], nameKey: string) => {
+    return items.filter(item =>
+      item[nameKey]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.mobile_number?.includes(searchTerm)
+    );
+  };
+
+  const filterByPanchayat = (items: any[]) => {
+    if (selectedPanchayat === 'all') return items;
+    return items.filter(item => item.panchayat_id === selectedPanchayat);
+  };
+
+  const filteredCustomers = useMemo(() => {
+    return filterByPanchayat(filterBySearch(customers, 'name'));
+  }, [customers, searchTerm, selectedPanchayat]);
+
+  const filteredCooks = useMemo(() => {
+    return filterByPanchayat(filterBySearch(cooks, 'kitchen_name'));
+  }, [cooks, searchTerm, selectedPanchayat]);
+
+  const filteredDelivery = useMemo(() => {
+    return filterByPanchayat(filterBySearch(deliveryStaff, 'name'));
+  }, [deliveryStaff, searchTerm, selectedPanchayat]);
+
+  // Handlers
+  const handleEdit = (user: any, type: 'customer' | 'cook' | 'delivery') => {
+    setSelectedUser(user);
+    setSelectedUserType(type);
+    setEditDialogOpen(true);
+  };
+
+  const handleDelete = (user: any, type: 'customer' | 'cook' | 'delivery') => {
+    setSelectedUser(user);
+    setSelectedUserType(type);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleToggleActive = async (user: any, type: 'customer' | 'cook' | 'delivery') => {
+    const newStatus = !user.is_active;
+    const mutation = type === 'customer' 
+      ? updateCustomerMutation 
+      : type === 'cook' 
+        ? updateCookMutation 
+        : updateDeliveryMutation;
+    
+    mutation.mutate({ ...user, is_active: newStatus });
+  };
+
+  const handleSaveEdit = (data: any) => {
+    switch (selectedUserType) {
+      case 'customer':
+        updateCustomerMutation.mutate(data);
+        break;
+      case 'cook':
+        updateCookMutation.mutate(data);
+        break;
+      case 'delivery':
+        updateDeliveryMutation.mutate(data);
+        break;
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (!selectedUser) return;
+    switch (selectedUserType) {
+      case 'customer':
+        deleteCustomerMutation.mutate(selectedUser.id);
+        break;
+      case 'cook':
+        deleteCookMutation.mutate(selectedUser.id);
+        break;
+      case 'delivery':
+        deleteDeliveryMutation.mutate(selectedUser.id);
+        break;
+    }
+  };
+
+  // Export functions
+  const getExportData = () => {
+    switch (activeTab) {
+      case 'customers':
+        return filteredCustomers.map(c => ({
+          Name: c.name,
+          Mobile: c.mobile_number,
+          Panchayat: c.panchayats?.name || '-',
+          Ward: c.ward_number || '-',
+          Status: c.is_active ? 'Active' : 'Inactive',
+        }));
+      case 'cooks':
+        return filteredCooks.map(c => ({
+          'Kitchen Name': c.kitchen_name,
+          Mobile: c.mobile_number,
+          Panchayat: c.panchayats?.name || '-',
+          Rating: c.rating?.toFixed(1) || '0.0',
+          Orders: c.total_orders || 0,
+          Status: c.is_active ? 'Active' : 'Inactive',
+          Available: c.is_available ? 'Yes' : 'No',
+        }));
+      case 'delivery':
+        return filteredDelivery.map(d => ({
+          Name: d.name,
+          Mobile: d.mobile_number,
+          Panchayat: d.panchayats?.name || '-',
+          Vehicle: d.vehicle_type,
+          Deliveries: d.total_deliveries || 0,
+          Approved: d.is_approved ? 'Yes' : 'No',
+          Available: d.is_available ? 'Yes' : 'No',
+        }));
+      default:
+        return [];
+    }
+  };
+
+  const handleExportCSV = () => {
+    const data = getExportData();
+    const filename = `${activeTab}_${new Date().toISOString().split('T')[0]}`;
+    exportToCSV(data, filename);
+    toast.success(`Exported ${data.length} records to CSV`);
+  };
+
+  const handleExportExcel = () => {
+    const data = getExportData();
+    const filename = `${activeTab}_${new Date().toISOString().split('T')[0]}`;
+    exportToExcel(data, filename);
+    toast.success(`Exported ${data.length} records to Excel`);
+  };
+
+  const getUserName = () => {
+    if (!selectedUser) return '';
+    switch (selectedUserType) {
+      case 'customer':
+        return selectedUser.name;
+      case 'cook':
+        return selectedUser.kitchen_name;
+      case 'delivery':
+        return selectedUser.name;
+      default:
+        return '';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <AdminNavbar />
 
-      <main className="p-4">
-        <div className="mb-4 flex items-center gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or mobile..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
+      <main className="p-4 space-y-4">
+        <UsersFilters
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          panchayats={panchayats}
+          selectedPanchayat={selectedPanchayat}
+          onPanchayatChange={setSelectedPanchayat}
+          onExportCSV={handleExportCSV}
+          onExportExcel={handleExportExcel}
+        />
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-3">
@@ -122,50 +384,16 @@ const AdminUsers: React.FC = () => {
           <TabsContent value="customers">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Customers ({filteredCustomers?.length || 0})</span>
-                </CardTitle>
+                <CardTitle>Customers ({filteredCustomers.length})</CardTitle>
               </CardHeader>
               <CardContent>
-                {customersLoading ? (
-                  <p className="text-center py-4 text-muted-foreground">Loading...</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Mobile</TableHead>
-                          <TableHead>Panchayat</TableHead>
-                          <TableHead>Ward</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredCustomers?.map((customer) => (
-                          <TableRow key={customer.id}>
-                            <TableCell className="font-medium">{customer.name}</TableCell>
-                            <TableCell>{customer.mobile_number}</TableCell>
-                            <TableCell>{customer.panchayats?.name || '-'}</TableCell>
-                            <TableCell>{customer.ward_number || '-'}</TableCell>
-                            <TableCell>
-                              <Badge variant={customer.is_active ? 'default' : 'secondary'}>
-                                {customer.is_active ? 'Active' : 'Inactive'}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        {filteredCustomers?.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={5} className="text-center text-muted-foreground">
-                              No customers found
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                <CustomersTable
+                  customers={filteredCustomers}
+                  isLoading={customersLoading}
+                  onEdit={(c) => handleEdit(c, 'customer')}
+                  onDelete={(c) => handleDelete(c, 'customer')}
+                  onToggleActive={(c) => handleToggleActive(c, 'customer')}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -174,61 +402,20 @@ const AdminUsers: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>Food Partners ({filteredCooks?.length || 0})</span>
+                  <span>Food Partners ({filteredCooks.length})</span>
                   <Button size="sm" onClick={() => navigate('/admin/cooks')}>
                     Manage Cooks
                   </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {cooksLoading ? (
-                  <p className="text-center py-4 text-muted-foreground">Loading...</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Kitchen Name</TableHead>
-                          <TableHead>Mobile</TableHead>
-                          <TableHead>Panchayat</TableHead>
-                          <TableHead>Rating</TableHead>
-                          <TableHead>Orders</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredCooks?.map((cook) => (
-                          <TableRow key={cook.id}>
-                            <TableCell className="font-medium">{cook.kitchen_name}</TableCell>
-                            <TableCell>{cook.mobile_number}</TableCell>
-                            <TableCell>{cook.panchayats?.name || '-'}</TableCell>
-                            <TableCell>⭐ {cook.rating?.toFixed(1) || '0.0'}</TableCell>
-                            <TableCell>{cook.total_orders || 0}</TableCell>
-                            <TableCell>
-                              <div className="flex gap-1">
-                                <Badge variant={cook.is_active ? 'default' : 'secondary'}>
-                                  {cook.is_active ? 'Active' : 'Inactive'}
-                                </Badge>
-                                {cook.is_available && (
-                                  <Badge variant="outline" className="text-green-600">
-                                    Available
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        {filteredCooks?.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={6} className="text-center text-muted-foreground">
-                              No cooks found
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                <CooksTable
+                  cooks={filteredCooks}
+                  isLoading={cooksLoading}
+                  onEdit={(c) => handleEdit(c, 'cook')}
+                  onDelete={(c) => handleDelete(c, 'cook')}
+                  onToggleActive={(c) => handleToggleActive(c, 'cook')}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -237,66 +424,52 @@ const AdminUsers: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>Delivery Staff ({filteredDelivery?.length || 0})</span>
+                  <span>Delivery Staff ({filteredDelivery.length})</span>
                   <Button size="sm" onClick={() => navigate('/admin/delivery-staff')}>
                     Manage Staff
                   </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {deliveryLoading ? (
-                  <p className="text-center py-4 text-muted-foreground">Loading...</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Mobile</TableHead>
-                          <TableHead>Panchayat</TableHead>
-                          <TableHead>Vehicle</TableHead>
-                          <TableHead>Deliveries</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredDelivery?.map((staff) => (
-                          <TableRow key={staff.id}>
-                            <TableCell className="font-medium">{staff.name}</TableCell>
-                            <TableCell>{staff.mobile_number}</TableCell>
-                            <TableCell>{staff.panchayats?.name || '-'}</TableCell>
-                            <TableCell>{staff.vehicle_type}</TableCell>
-                            <TableCell>{staff.total_deliveries || 0}</TableCell>
-                            <TableCell>
-                              <div className="flex gap-1">
-                                <Badge variant={staff.is_approved ? 'default' : 'destructive'}>
-                                  {staff.is_approved ? 'Approved' : 'Pending'}
-                                </Badge>
-                                {staff.is_available && (
-                                  <Badge variant="outline" className="text-green-600">
-                                    Available
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        {filteredDelivery?.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={6} className="text-center text-muted-foreground">
-                              No delivery staff found
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                <DeliveryStaffTable
+                  deliveryStaff={filteredDelivery}
+                  isLoading={deliveryLoading}
+                  onEdit={(d) => handleEdit(d, 'delivery')}
+                  onDelete={(d) => handleDelete(d, 'delivery')}
+                  onToggleActive={(d) => handleToggleActive(d, 'delivery')}
+                />
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </main>
+
+      <EditUserDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        userType={selectedUserType}
+        user={selectedUser}
+        panchayats={panchayats}
+        onSave={handleSaveEdit}
+        isLoading={
+          updateCustomerMutation.isPending ||
+          updateCookMutation.isPending ||
+          updateDeliveryMutation.isPending
+        }
+      />
+
+      <DeleteUserDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        userName={getUserName()}
+        userType={selectedUserType}
+        onConfirm={handleConfirmDelete}
+        isLoading={
+          deleteCustomerMutation.isPending ||
+          deleteCookMutation.isPending ||
+          deleteDeliveryMutation.isPending
+        }
+      />
     </div>
   );
 };
