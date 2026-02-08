@@ -49,31 +49,43 @@ export const useCookPerformanceReport = (filters: ReportFilters) => {
 
       if (cooksError) throw cooksError;
 
-      let ordersQuery = supabase
-        .from('orders')
-        .select('assigned_cook_id, status, total_amount, cook_status');
+      // Use order_assigned_cooks table which tracks actual cook assignments
+      let assignmentsQuery = supabase
+        .from('order_assigned_cooks')
+        .select('cook_id, cook_status, order_id, orders!order_assigned_cooks_order_id_fkey(status, total_amount, created_at)');
 
-      if (filters.startDate) {
-        ordersQuery = ordersQuery.gte('created_at', filters.startDate.toISOString());
-      }
-      if (filters.endDate) {
-        ordersQuery = ordersQuery.lte('created_at', filters.endDate.toISOString());
-      }
+      const { data: assignments, error: assignmentsError } = await assignmentsQuery;
+      if (assignmentsError) throw assignmentsError;
 
-      const { data: orders, error: ordersError } = await ordersQuery;
-      if (ordersError) throw ordersError;
+      // Filter by date using the order's created_at
+      const filteredAssignments = assignments?.filter(a => {
+        const order = a.orders as unknown as { status: string; total_amount: number; created_at: string } | null;
+        if (!order) return false;
+        if (filters.startDate && new Date(order.created_at) < filters.startDate) return false;
+        if (filters.endDate && new Date(order.created_at) > filters.endDate) return false;
+        return true;
+      }) || [];
 
       return cooks?.map(cook => {
-        const cookOrders = orders?.filter(o => o.assigned_cook_id === cook.id) || [];
+        const cookAssignments = filteredAssignments.filter(a => a.cook_id === cook.id);
         return {
           cook_id: cook.id,
           kitchen_name: cook.kitchen_name,
-          total_orders: cookOrders.length,
-          accepted_orders: cookOrders.filter(o => o.cook_status === 'accepted' || o.cook_status === 'preparing' || o.cook_status === 'cooked').length,
-          rejected_orders: cookOrders.filter(o => o.cook_status === 'rejected').length,
-          completed_orders: cookOrders.filter(o => o.status === 'delivered').length,
+          total_orders: cookAssignments.length,
+          accepted_orders: cookAssignments.filter(a => ['accepted', 'preparing', 'cooked', 'ready'].includes(a.cook_status)).length,
+          rejected_orders: cookAssignments.filter(a => a.cook_status === 'rejected').length,
+          completed_orders: cookAssignments.filter(a => {
+            const order = a.orders as unknown as { status: string } | null;
+            return order?.status === 'delivered';
+          }).length,
           average_rating: cook.rating || 0,
-          total_earnings: cookOrders.filter(o => o.status === 'delivered').reduce((sum, o) => sum + (o.total_amount || 0), 0),
+          total_earnings: cookAssignments.filter(a => {
+            const order = a.orders as unknown as { status: string } | null;
+            return order?.status === 'delivered';
+          }).reduce((sum, a) => {
+            const order = a.orders as unknown as { total_amount: number } | null;
+            return sum + (order?.total_amount || 0);
+          }, 0),
         };
       });
     },
