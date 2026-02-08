@@ -238,52 +238,82 @@ export function useDeliveryNotifications() {
     };
   }, [profile, orderMatchesLocation, addPendingOrder, clearOrderTaken, queryClient]);
 
+  // Function to load/refresh pending orders
+  const loadPendingOrders = useCallback(async () => {
+    if (!profile?.is_approved || !profile?.is_available) return;
+
+    console.log('[DeliveryNotifications] Loading/refreshing available orders');
+    
+    // Build query for orders matching location
+    let query = supabase
+      .from('orders')
+      .select('*')
+      .in('service_type', ['cloud_kitchen', 'homemade'])
+      .eq('cook_status', 'ready')
+      .eq('delivery_status', 'pending')
+      .is('assigned_delivery_id', null)
+      .order('created_at', { ascending: false });
+
+    // Filter by panchayat
+    const panchayatIds = [profile.panchayat_id, ...(profile.assigned_panchayat_ids || [])].filter(Boolean);
+    if (panchayatIds.length > 0) {
+      query = query.in('panchayat_id', panchayatIds);
+    }
+
+    const { data: orders, error } = await query;
+    
+    if (error) {
+      console.error('[DeliveryNotifications] Error loading orders:', error);
+      return;
+    }
+
+    // Filter by ward if applicable
+    let filteredOrders = orders || [];
+    if (profile.staff_type === 'registered_partner' && profile.assigned_wards && profile.assigned_wards.length > 0) {
+      filteredOrders = filteredOrders.filter(order => 
+        profile.assigned_wards!.includes(order.ward_number)
+      );
+    }
+
+    // Track if we have new orders to show alert
+    let hasNewOrders = false;
+
+    // Add each order to pending if not already present
+    for (const order of filteredOrders) {
+      const alreadyExists = pendingOrders.some(o => o.id === order.id);
+      if (!alreadyExists) {
+        hasNewOrders = true;
+        await addPendingOrder(order);
+      }
+    }
+
+    // Show alert and play sound if we found new orders
+    if (hasNewOrders && filteredOrders.length > 0) {
+      setShowAlert(true);
+      playNotificationSound();
+    }
+
+    // Refresh related queries
+    queryClient.invalidateQueries({ queryKey: ['available-delivery-orders'] });
+  }, [profile, addPendingOrder, pendingOrders, playNotificationSound, queryClient]);
+
   // Load existing pending orders on mount
   useEffect(() => {
     if (!profile?.is_approved || !profile?.is_available) return;
-
-    const loadPendingOrders = async () => {
-      console.log('[DeliveryNotifications] Loading existing pending orders');
-      
-      // Build query for orders matching location
-      let query = supabase
-        .from('orders')
-        .select('*')
-        .in('service_type', ['cloud_kitchen', 'homemade'])
-        .eq('cook_status', 'ready')
-        .eq('delivery_status', 'pending')
-        .is('assigned_delivery_id', null)
-        .order('created_at', { ascending: false });
-
-      // Filter by panchayat
-      const panchayatIds = [profile.panchayat_id, ...(profile.assigned_panchayat_ids || [])].filter(Boolean);
-      if (panchayatIds.length > 0) {
-        query = query.in('panchayat_id', panchayatIds);
-      }
-
-      const { data: orders, error } = await query;
-      
-      if (error) {
-        console.error('[DeliveryNotifications] Error loading orders:', error);
-        return;
-      }
-
-      // Filter by ward if applicable
-      let filteredOrders = orders || [];
-      if (profile.staff_type === 'registered_partner' && profile.assigned_wards && profile.assigned_wards.length > 0) {
-        filteredOrders = filteredOrders.filter(order => 
-          profile.assigned_wards!.includes(order.ward_number)
-        );
-      }
-
-      // Add each order to pending
-      for (const order of filteredOrders) {
-        await addPendingOrder(order);
-      }
-    };
-
     loadPendingOrders();
   }, [profile?.id, profile?.is_approved, profile?.is_available]);
+
+  // Auto-refresh every 2 minutes
+  useEffect(() => {
+    if (!profile?.is_approved || !profile?.is_available) return;
+
+    const intervalId = setInterval(() => {
+      console.log('[DeliveryNotifications] Auto-refresh triggered');
+      loadPendingOrders();
+    }, 2 * 60 * 1000); // 2 minutes
+
+    return () => clearInterval(intervalId);
+  }, [profile?.is_approved, profile?.is_available, loadPendingOrders]);
 
   return {
     pendingOrders,
@@ -293,6 +323,7 @@ export function useDeliveryNotifications() {
     ordersTaken,
     clearOrderTaken,
     ORDER_ACCEPT_CUTOFF_SECONDS,
+    refreshOrders: loadPendingOrders,
   };
 }
 
