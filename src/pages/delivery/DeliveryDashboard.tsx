@@ -65,7 +65,7 @@ const DeliveryDashboard: React.FC = () => {
   const acceptDelivery = useAcceptDelivery();
   const updateAvailability = useUpdateDeliveryAvailability();
   
-  // Real-time notifications
+  // Real-time notifications with auto-refresh
   const { 
     pendingOrders, 
     showAlert, 
@@ -73,7 +73,8 @@ const DeliveryDashboard: React.FC = () => {
     removeOrder,
     ordersTaken,
     clearOrderTaken,
-    ORDER_ACCEPT_CUTOFF_SECONDS 
+    ORDER_ACCEPT_CUTOFF_SECONDS,
+    refreshOrders
   } = useDeliveryNotifications();
 
   const handleLogout = async () => {
@@ -130,6 +131,8 @@ const DeliveryDashboard: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['delivery-wallet'] }),
       queryClient.invalidateQueries({ queryKey: ['delivery-order-history'] }),
     ]);
+    // Also refresh notifications and trigger popup if new orders found
+    await refreshOrders();
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
