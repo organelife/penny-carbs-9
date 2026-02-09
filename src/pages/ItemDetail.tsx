@@ -322,8 +322,12 @@ const ItemDetail: React.FC = () => {
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            <Button className="flex-1 h-12 text-base" onClick={handleAddToCart}>
-              Add to Cart - ₹{(customerPrice * quantity).toFixed(0)}
+            <Button 
+              className="flex-1 h-12 text-base" 
+              onClick={handleAddToCart}
+              disabled={needsCookSelection}
+            >
+              {needsCookSelection ? 'Select a Cook' : `Add to Cart - ₹${(customerPrice * quantity).toFixed(0)}`}
             </Button>
           </div>
         )}
