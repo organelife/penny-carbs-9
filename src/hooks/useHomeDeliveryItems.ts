@@ -12,6 +12,8 @@ export interface HomeDeliveryItem {
   preparation_time_minutes: number | null;
   category_id: string | null;
   category_name?: string;
+  set_size: number | null;
+  min_order_sets: number | null;
   images: {
     id: string;
     image_url: string;
@@ -34,6 +36,8 @@ export function useHomeDeliveryItems() {
           is_available,
           preparation_time_minutes,
           category_id,
+          set_size,
+          min_order_sets,
           food_categories!food_items_category_id_fkey(name),
           images:food_item_images(id, image_url, is_primary)
         `)
@@ -96,6 +100,40 @@ export function useToggleHomeDeliveryItem() {
     onError: (error) => {
       toast({
         title: 'Failed to update item',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+export function useUpdateHomeDeliveryItemSet() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      itemId,
+      setSize,
+      minOrderSets,
+    }: {
+      itemId: string;
+      setSize: number;
+      minOrderSets: number;
+    }) => {
+      const { error } = await supabase
+        .from('food_items')
+        .update({ set_size: setSize, min_order_sets: minOrderSets })
+        .eq('id', itemId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['home-delivery-items'] });
+      toast({ title: 'Set configuration updated' });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Failed to update set configuration',
         description: error.message,
         variant: 'destructive',
       });

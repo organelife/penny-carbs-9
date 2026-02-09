@@ -1,8 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -11,8 +20,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowLeft, Leaf, Clock, UtensilsCrossed } from 'lucide-react';
-import { useHomeDeliveryItems, useToggleHomeDeliveryItem } from '@/hooks/useHomeDeliveryItems';
+import { ArrowLeft, Leaf, Clock, UtensilsCrossed, Edit2 } from 'lucide-react';
+import { useHomeDeliveryItems, useToggleHomeDeliveryItem, useUpdateHomeDeliveryItemSet, type HomeDeliveryItem } from '@/hooks/useHomeDeliveryItems';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface HomeDeliveryItemsProps {
@@ -22,9 +31,33 @@ interface HomeDeliveryItemsProps {
 const HomeDeliveryItems: React.FC<HomeDeliveryItemsProps> = ({ onBack }) => {
   const { data: items, isLoading } = useHomeDeliveryItems();
   const toggleItem = useToggleHomeDeliveryItem();
+  const updateItemSet = useUpdateHomeDeliveryItemSet();
+
+  const [editItemOpen, setEditItemOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<HomeDeliveryItem | null>(null);
+  const [setSize, setSetSize] = useState(1);
+  const [minOrderSets, setMinOrderSets] = useState(1);
 
   const availableCount = items?.filter(i => i.is_available).length || 0;
   const totalCount = items?.length || 0;
+
+  const openEditDialog = (item: HomeDeliveryItem) => {
+    setSelectedItem(item);
+    setSetSize(item.set_size || 1);
+    setMinOrderSets(item.min_order_sets || 1);
+    setEditItemOpen(true);
+  };
+
+  const handleUpdateItem = async () => {
+    if (!selectedItem) return;
+    await updateItemSet.mutateAsync({
+      itemId: selectedItem.id,
+      setSize,
+      minOrderSets,
+    });
+    setEditItemOpen(false);
+    setSelectedItem(null);
+  };
 
   return (
     <div className="space-y-4">
@@ -86,8 +119,11 @@ const HomeDeliveryItems: React.FC<HomeDeliveryItemsProps> = ({ onBack }) => {
                     <TableHead>Item</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Price</TableHead>
+                    <TableHead>Set Size</TableHead>
+                    <TableHead>Min Sets</TableHead>
                     <TableHead>Prep Time</TableHead>
                     <TableHead className="text-right">Available</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -128,6 +164,12 @@ const HomeDeliveryItems: React.FC<HomeDeliveryItemsProps> = ({ onBack }) => {
                       </TableCell>
                       <TableCell className="font-medium">₹{item.price}</TableCell>
                       <TableCell>
+                        <Badge variant="secondary">{item.set_size || 1} pcs/set</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{item.min_order_sets || 1} sets min</Badge>
+                      </TableCell>
+                      <TableCell>
                         {item.preparation_time_minutes ? (
                           <div className="flex items-center gap-1 text-sm">
                             <Clock className="h-3 w-3" />
@@ -146,6 +188,15 @@ const HomeDeliveryItems: React.FC<HomeDeliveryItemsProps> = ({ onBack }) => {
                           disabled={toggleItem.isPending}
                         />
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(item)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -163,6 +214,61 @@ const HomeDeliveryItems: React.FC<HomeDeliveryItemsProps> = ({ onBack }) => {
           </p>
         </CardContent>
       </Card>
+
+      {/* Edit Set Configuration Dialog */}
+      <Dialog open={editItemOpen} onOpenChange={setEditItemOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Set Configuration - {selectedItem?.name}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Set Size (pieces per set)</Label>
+              <Input
+                type="number"
+                min="1"
+                value={setSize}
+                onChange={(e) => setSetSize(parseInt(e.target.value) || 1)}
+              />
+              <p className="text-xs text-muted-foreground">
+                e.g., 5 samosas per set
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Minimum Order Sets</Label>
+              <Input
+                type="number"
+                min="1"
+                value={minOrderSets}
+                onChange={(e) => setMinOrderSets(parseInt(e.target.value) || 1)}
+              />
+              <p className="text-xs text-muted-foreground">
+                e.g., minimum 3 sets required
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-muted p-3">
+              <p className="font-medium">
+                Customer will order minimum: {setSize * minOrderSets} pieces
+              </p>
+              <p className="text-sm text-muted-foreground">
+                ({minOrderSets} sets × {setSize} pieces/set)
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditItemOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateItem} disabled={updateItemSet.isPending}>
+              {updateItemSet.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
