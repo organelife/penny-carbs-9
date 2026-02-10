@@ -16,41 +16,53 @@ export type Database = {
     Tables: {
       admin_permissions: {
         Row: {
-          can_access_reports: boolean
-          can_approve_settlements: boolean
-          can_assign_orders: boolean
-          can_manage_items: boolean
-          can_manage_orders: boolean
-          can_register_cooks: boolean
-          can_register_delivery_staff: boolean
           created_at: string
           id: string
+          perm_assign_orders: string
+          perm_banners: string
+          perm_categories: string
+          perm_cooks: string
+          perm_delivery_staff: string
+          perm_items: string
+          perm_locations: string
+          perm_orders: string
+          perm_reports: string
+          perm_settlements: string
+          perm_special_offers: string
           updated_at: string
           user_id: string
         }
         Insert: {
-          can_access_reports?: boolean
-          can_approve_settlements?: boolean
-          can_assign_orders?: boolean
-          can_manage_items?: boolean
-          can_manage_orders?: boolean
-          can_register_cooks?: boolean
-          can_register_delivery_staff?: boolean
           created_at?: string
           id?: string
+          perm_assign_orders?: string
+          perm_banners?: string
+          perm_categories?: string
+          perm_cooks?: string
+          perm_delivery_staff?: string
+          perm_items?: string
+          perm_locations?: string
+          perm_orders?: string
+          perm_reports?: string
+          perm_settlements?: string
+          perm_special_offers?: string
           updated_at?: string
           user_id: string
         }
         Update: {
-          can_access_reports?: boolean
-          can_approve_settlements?: boolean
-          can_assign_orders?: boolean
-          can_manage_items?: boolean
-          can_manage_orders?: boolean
-          can_register_cooks?: boolean
-          can_register_delivery_staff?: boolean
           created_at?: string
           id?: string
+          perm_assign_orders?: string
+          perm_banners?: string
+          perm_categories?: string
+          perm_cooks?: string
+          perm_delivery_staff?: string
+          perm_items?: string
+          perm_locations?: string
+          perm_orders?: string
+          perm_reports?: string
+          perm_settlements?: string
+          perm_special_offers?: string
           updated_at?: string
           user_id?: string
         }
@@ -1694,7 +1706,19 @@ export type Database = {
         Returns: boolean
       }
       is_cook: { Args: { _user_id: string }; Returns: boolean }
+      is_cook_assigned_to_order: {
+        Args: { _order_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_delivery_staff: { Args: { _user_id: string }; Returns: boolean }
+      is_order_assigned_cook: {
+        Args: { _cook_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_order_customer: {
+        Args: { _order_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "super_admin" | "admin" | "cook" | "delivery_staff" | "customer"
