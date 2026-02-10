@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { 
   Dialog,
   DialogContent,
@@ -15,13 +16,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Plus, 
   Search, 
@@ -35,37 +30,16 @@ import {
 import { toast } from '@/hooks/use-toast';
 import AdminNavbar from '@/components/admin/AdminNavbar';
 
-type PermLevel = 'none' | 'read' | 'write';
-
-interface FormData {
-  user_id: string;
-  perm_items: PermLevel;
-  perm_orders: PermLevel;
-  perm_assign_orders: PermLevel;
-  perm_cooks: PermLevel;
-  perm_delivery_staff: PermLevel;
-  perm_reports: PermLevel;
-  perm_settlements: PermLevel;
-  perm_categories: PermLevel;
-  perm_banners: PermLevel;
-  perm_locations: PermLevel;
-  perm_special_offers: PermLevel;
-}
-
 interface AdminUser {
   id: string;
   user_id: string;
-  perm_items: PermLevel;
-  perm_orders: PermLevel;
-  perm_assign_orders: PermLevel;
-  perm_cooks: PermLevel;
-  perm_delivery_staff: PermLevel;
-  perm_reports: PermLevel;
-  perm_settlements: PermLevel;
-  perm_categories: PermLevel;
-  perm_banners: PermLevel;
-  perm_locations: PermLevel;
-  perm_special_offers: PermLevel;
+  can_manage_items: boolean;
+  can_manage_orders: boolean;
+  can_assign_orders: boolean;
+  can_register_cooks: boolean;
+  can_register_delivery_staff: boolean;
+  can_access_reports: boolean;
+  can_approve_settlements: boolean;
   created_at: string;
   profile?: {
     name: string;
@@ -79,30 +53,6 @@ interface SearchedUser {
   mobile_number: string;
 }
 
-const PERM_KEYS = [
-  { key: 'perm_items', label: 'Items' },
-  { key: 'perm_orders', label: 'Orders' },
-  { key: 'perm_assign_orders', label: 'Assign Orders' },
-  { key: 'perm_cooks', label: 'Cooks' },
-  { key: 'perm_delivery_staff', label: 'Delivery Staff' },
-  { key: 'perm_categories', label: 'Categories' },
-  { key: 'perm_banners', label: 'Banners' },
-  { key: 'perm_locations', label: 'Locations' },
-  { key: 'perm_special_offers', label: 'Special Offers' },
-  { key: 'perm_reports', label: 'Reports' },
-  { key: 'perm_settlements', label: 'Settlements' },
-] as const;
-
-const DEFAULT_PERMS: Record<string, PermLevel> = Object.fromEntries(
-  PERM_KEYS.map(({ key }) => [key, 'none'])
-);
-
-const LEVEL_BADGE: Record<PermLevel, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
-  none: { label: 'No Access', variant: 'outline' },
-  read: { label: 'View', variant: 'secondary' },
-  write: { label: 'Full', variant: 'default' },
-};
-
 const AdminAdmins: React.FC = () => {
   const navigate = useNavigate();
   const { role } = useAuth();
@@ -111,23 +61,33 @@ const AdminAdmins: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Dialog state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState<AdminUser | null>(null);
   
+  // User search state
   const [mobileSearch, setMobileSearch] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchedUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<SearchedUser | null>(null);
   
-  const [formData, setFormData] = useState<FormData>({
+  const [formData, setFormData] = useState({
     user_id: '',
-    ...DEFAULT_PERMS,
-  } as FormData);
+    can_manage_items: false,
+    can_manage_orders: false,
+    can_assign_orders: false,
+    can_register_cooks: false,
+    can_register_delivery_staff: false,
+    can_access_reports: false,
+    can_approve_settlements: false,
+  });
 
   const isSuperAdmin = role === 'super_admin';
 
   useEffect(() => {
-    if (isSuperAdmin) fetchAdmins();
+    if (isSuperAdmin) {
+      fetchAdmins();
+    }
   }, [isSuperAdmin]);
 
   const fetchAdmins = async () => {
@@ -139,6 +99,7 @@ const AdminAdmins: React.FC = () => {
 
       if (error) throw error;
 
+      // Fetch profiles for each admin
       const adminIds = data?.map(a => a.user_id) || [];
       if (adminIds.length > 0) {
         const { data: profiles } = await supabase
@@ -148,16 +109,20 @@ const AdminAdmins: React.FC = () => {
 
         const adminsWithProfiles = data?.map(admin => ({
           ...admin,
-          profile: profiles?.find(p => p.user_id === admin.user_id),
+          profile: profiles?.find(p => p.user_id === admin.user_id)
         })) || [];
 
-        setAdmins(adminsWithProfiles as AdminUser[]);
+        setAdmins(adminsWithProfiles);
       } else {
         setAdmins([]);
       }
     } catch (error) {
       console.error('Error fetching admins:', error);
-      toast({ title: 'Error', description: 'Failed to fetch admin users', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch admin users',
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -165,24 +130,42 @@ const AdminAdmins: React.FC = () => {
 
   const handleSearchByMobile = async () => {
     if (!mobileSearch.trim() || mobileSearch.length < 3) {
-      toast({ title: 'Enter Mobile Number', description: 'Please enter at least 3 digits to search', variant: 'destructive' });
+      toast({
+        title: 'Enter Mobile Number',
+        description: 'Please enter at least 3 digits to search',
+        variant: 'destructive',
+      });
       return;
     }
+
     setIsSearching(true);
     setSearchResults([]);
     setSelectedUser(null);
+
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('user_id, name, mobile_number')
         .ilike('mobile_number', `%${mobileSearch}%`)
         .limit(10);
+
       if (error) throw error;
+
       setSearchResults(data || []);
-      if (data?.length === 0) toast({ title: 'No Users Found', description: 'No users found with that mobile number' });
+      
+      if (data?.length === 0) {
+        toast({
+          title: 'No Users Found',
+          description: 'No users found with that mobile number',
+        });
+      }
     } catch (error) {
       console.error('Error searching users:', error);
-      toast({ title: 'Error', description: 'Failed to search users', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: 'Failed to search users',
+        variant: 'destructive',
+      });
     } finally {
       setIsSearching(false);
     }
@@ -197,70 +180,147 @@ const AdminAdmins: React.FC = () => {
   const handleOpenDialog = (admin?: AdminUser) => {
     if (admin) {
       setEditingAdmin(admin);
-      setSelectedUser(admin.profile ? { user_id: admin.user_id, name: admin.profile.name, mobile_number: admin.profile.mobile_number } : null);
-      const perms: Record<string, PermLevel> = {};
-      PERM_KEYS.forEach(({ key }) => { perms[key] = (admin as any)[key] || 'none'; });
-      setFormData({ user_id: admin.user_id, ...DEFAULT_PERMS, ...perms } as FormData);
+      setSelectedUser(admin.profile ? {
+        user_id: admin.user_id,
+        name: admin.profile.name,
+        mobile_number: admin.profile.mobile_number,
+      } : null);
+      setFormData({
+        user_id: admin.user_id,
+        can_manage_items: admin.can_manage_items,
+        can_manage_orders: admin.can_manage_orders,
+        can_assign_orders: admin.can_assign_orders,
+        can_register_cooks: admin.can_register_cooks,
+        can_register_delivery_staff: admin.can_register_delivery_staff,
+        can_access_reports: admin.can_access_reports,
+        can_approve_settlements: admin.can_approve_settlements,
+      });
     } else {
       setEditingAdmin(null);
       setSelectedUser(null);
       setMobileSearch('');
       setSearchResults([]);
-      setFormData({ user_id: '', ...DEFAULT_PERMS } as FormData);
+      setFormData({
+        user_id: '',
+        can_manage_items: false,
+        can_manage_orders: false,
+        can_assign_orders: false,
+        can_register_cooks: false,
+        can_register_delivery_staff: false,
+        can_access_reports: false,
+        can_approve_settlements: false,
+      });
     }
     setIsDialogOpen(true);
   };
 
   const handleSaveAdmin = async () => {
     if (!formData.user_id) {
-      toast({ title: 'Validation Error', description: 'User ID is required', variant: 'destructive' });
+      toast({
+        title: 'Validation Error',
+        description: 'User ID is required',
+        variant: 'destructive',
+      });
       return;
     }
+
     try {
-      const { user_id, ...perms } = formData;
-      const permissionData = { user_id, ...perms };
+      const permissionData = {
+        user_id: formData.user_id,
+        can_manage_items: formData.can_manage_items,
+        can_manage_orders: formData.can_manage_orders,
+        can_assign_orders: formData.can_assign_orders,
+        can_register_cooks: formData.can_register_cooks,
+        can_register_delivery_staff: formData.can_register_delivery_staff,
+        can_access_reports: formData.can_access_reports,
+        can_approve_settlements: formData.can_approve_settlements,
+      };
 
       if (editingAdmin) {
-        const { error } = await supabase.from('admin_permissions').update(permissionData).eq('id', editingAdmin.id);
+        const { error } = await supabase
+          .from('admin_permissions')
+          .update(permissionData)
+          .eq('id', editingAdmin.id);
+
         if (error) throw error;
         toast({ title: 'Admin permissions updated' });
       } else {
-        const { error: roleError } = await supabase.from('user_roles').insert({ user_id: formData.user_id, role: 'admin' });
-        if (roleError && !roleError.message.includes('duplicate')) throw roleError;
-        const { error } = await supabase.from('admin_permissions').insert(permissionData);
+        // First, add admin role to user_roles
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({ user_id: formData.user_id, role: 'admin' });
+
+        if (roleError && !roleError.message.includes('duplicate')) {
+          throw roleError;
+        }
+
+        // Then add permissions
+        const { error } = await supabase
+          .from('admin_permissions')
+          .insert(permissionData);
+
         if (error) throw error;
         toast({ title: 'Admin added successfully' });
       }
+
       setIsDialogOpen(false);
       fetchAdmins();
     } catch (error) {
       console.error('Error saving admin:', error);
-      toast({ title: 'Error', description: 'Failed to save admin', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: 'Failed to save admin',
+        variant: 'destructive',
+      });
     }
   };
 
   const handleDeleteAdmin = async (admin: AdminUser) => {
-    if (!confirm('Are you sure you want to remove admin permissions for this user?')) return;
+    if (!confirm(`Are you sure you want to remove admin permissions for this user?`)) return;
+
     try {
-      const { error } = await supabase.from('admin_permissions').delete().eq('id', admin.id);
+      const { error } = await supabase
+        .from('admin_permissions')
+        .delete()
+        .eq('id', admin.id);
+
       if (error) throw error;
-      await supabase.from('user_roles').delete().eq('user_id', admin.user_id).eq('role', 'admin');
+
+      // Also remove admin role
+      await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', admin.user_id)
+        .eq('role', 'admin');
+
       setAdmins(prev => prev.filter(a => a.id !== admin.id));
       toast({ title: 'Admin removed successfully' });
     } catch (error) {
       console.error('Error deleting admin:', error);
-      toast({ title: 'Error', description: 'Failed to remove admin', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: 'Failed to remove admin',
+        variant: 'destructive',
+      });
     }
   };
 
+  // Filter admins
   const filteredAdmins = admins.filter(admin => {
     const name = admin.profile?.name?.toLowerCase() || '';
     const mobile = admin.profile?.mobile_number || '';
     return name.includes(searchQuery.toLowerCase()) || mobile.includes(searchQuery);
   });
 
-  const getActivePerms = (admin: AdminUser) =>
-    PERM_KEYS.filter(({ key }) => (admin as any)[key] !== 'none');
+  const permissionLabels = [
+    { key: 'can_manage_items', label: 'Manage Items' },
+    { key: 'can_manage_orders', label: 'Manage Orders' },
+    { key: 'can_assign_orders', label: 'Assign Orders' },
+    { key: 'can_register_cooks', label: 'Register Cooks' },
+    { key: 'can_register_delivery_staff', label: 'Register Delivery Staff' },
+    { key: 'can_access_reports', label: 'Access Reports' },
+    { key: 'can_approve_settlements', label: 'Approve Settlements' },
+  ];
 
   if (!isSuperAdmin) {
     return (
@@ -271,9 +331,10 @@ const AdminAdmins: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background pt-[6.5rem]">
+    <div className="min-h-screen bg-background">
       <AdminNavbar />
 
+      {/* Page Header */}
       <div className="border-b bg-card px-4 py-4">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-semibold">Admin Management</h2>
@@ -282,16 +343,27 @@ const AdminAdmins: React.FC = () => {
             Add Admin
           </Button>
         </div>
-        <div className="mt-4 relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search by name or mobile..." className="pl-10" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+
+        {/* Search */}
+        <div className="mt-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search by name or mobile..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
       <main className="p-4">
         {isLoading ? (
           <div className="space-y-4">
-            {[1, 2, 3].map(i => <Skeleton key={i} className="h-32 rounded-xl" />)}
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-32 rounded-xl" />
+            ))}
           </div>
         ) : filteredAdmins.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
@@ -305,7 +377,7 @@ const AdminAdmins: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredAdmins.map(admin => (
+            {filteredAdmins.map((admin) => (
               <Card key={admin.id}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between">
@@ -314,32 +386,40 @@ const AdminAdmins: React.FC = () => {
                         <ShieldCheck className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <h3 className="font-medium">{admin.profile?.name || 'Unknown User'}</h3>
-                        <p className="text-sm text-muted-foreground">{admin.profile?.mobile_number || admin.user_id.slice(0, 8)}</p>
+                        <h3 className="font-medium">
+                          {admin.profile?.name || 'Unknown User'}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          {admin.profile?.mobile_number || admin.user_id.slice(0, 8)}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(admin)}>
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => handleOpenDialog(admin)}
+                      >
                         <Edit2 className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteAdmin(admin)}>
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        className="text-destructive"
+                        onClick={() => handleDeleteAdmin(admin)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-1">
-                    {getActivePerms(admin).map(({ key, label }) => {
-                      const level = (admin as any)[key] as PermLevel;
-                      const badge = LEVEL_BADGE[level];
-                      return (
-                        <Badge key={key} variant={badge.variant} className="text-xs">
-                          {label}: {badge.label}
+                    {permissionLabels.map(({ key, label }) => (
+                      admin[key as keyof AdminUser] && (
+                        <Badge key={key} variant="secondary" className="text-xs">
+                          {label}
                         </Badge>
-                      );
-                    })}
-                    {getActivePerms(admin).length === 0 && (
-                      <span className="text-xs text-muted-foreground">No permissions assigned</span>
-                    )}
+                      )
+                    ))}
                   </div>
                 </CardContent>
               </Card>
@@ -348,10 +428,13 @@ const AdminAdmins: React.FC = () => {
         )}
       </main>
 
+      {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingAdmin ? 'Edit Admin Permissions' : 'Add New Admin'}</DialogTitle>
+            <DialogTitle>
+              {editingAdmin ? 'Edit Admin Permissions' : 'Add New Admin'}
+            </DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
@@ -365,16 +448,29 @@ const AdminAdmins: React.FC = () => {
                     placeholder="Enter mobile number..."
                     onKeyDown={(e) => e.key === 'Enter' && handleSearchByMobile()}
                   />
-                  <Button type="button" onClick={handleSearchByMobile} disabled={isSearching}>
-                    {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserSearch className="h-4 w-4" />}
+                  <Button 
+                    type="button" 
+                    onClick={handleSearchByMobile}
+                    disabled={isSearching}
+                  >
+                    {isSearching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <UserSearch className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
 
+                {/* Search Results */}
                 {searchResults.length > 0 && (
                   <div className="space-y-2 rounded-md border p-2">
                     <p className="text-xs text-muted-foreground">Select a user:</p>
-                    {searchResults.map(user => (
-                      <div key={user.user_id} className="flex cursor-pointer items-center justify-between rounded-md p-2 hover:bg-muted" onClick={() => handleSelectUser(user)}>
+                    {searchResults.map((user) => (
+                      <div
+                        key={user.user_id}
+                        className="flex cursor-pointer items-center justify-between rounded-md p-2 hover:bg-muted"
+                        onClick={() => handleSelectUser(user)}
+                      >
                         <div>
                           <p className="font-medium">{user.name}</p>
                           <p className="text-sm text-muted-foreground">{user.mobile_number}</p>
@@ -385,6 +481,7 @@ const AdminAdmins: React.FC = () => {
                   </div>
                 )}
 
+                {/* Selected User */}
                 {selectedUser && (
                   <div className="rounded-md border border-primary bg-primary/5 p-3">
                     <p className="text-sm font-medium text-primary">Selected User:</p>
@@ -397,32 +494,30 @@ const AdminAdmins: React.FC = () => {
 
             <div className="space-y-3">
               <Label>Permissions</Label>
-              <div className="space-y-2">
-                {PERM_KEYS.map(({ key, label }) => (
-                  <div key={key} className="flex items-center justify-between gap-4">
-                    <Label className="text-sm font-normal min-w-[120px]">{label}</Label>
-                    <Select
-                      value={formData[key] || 'none'}
-                      onValueChange={(val) => setFormData(prev => ({ ...prev, [key]: val as PermLevel }))}
-                    >
-                      <SelectTrigger className="w-[140px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No Access</SelectItem>
-                        <SelectItem value="read">View Only</SelectItem>
-                        <SelectItem value="write">Full Access</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
-              </div>
+              {permissionLabels.map(({ key, label }) => (
+                <div key={key} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={key}
+                    checked={formData[key as keyof typeof formData] as boolean}
+                    onCheckedChange={(checked) => 
+                      setFormData({ ...formData, [key]: checked })
+                    }
+                  />
+                  <Label htmlFor={key} className="text-sm font-normal">
+                    {label}
+                  </Label>
+                </div>
+              ))}
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveAdmin}>{editingAdmin ? 'Save Changes' : 'Add Admin'}</Button>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveAdmin}>
+              {editingAdmin ? 'Save Changes' : 'Add Admin'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

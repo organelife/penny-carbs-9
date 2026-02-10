@@ -221,16 +221,16 @@ const CloudKitchenCheckout: React.FC = () => {
 
       if (itemsError) throw itemsError;
 
-      // Create cook assignments for each unique cook (use upsert to avoid conflict with triggers)
+      // Create cook assignments for each unique cook
       for (const cookId of cookIds) {
         const { error: assignError } = await supabase
           .from('order_assigned_cooks')
-          .upsert({
+          .insert([{
             order_id: order.id,
             cook_id: cookId,
-            cook_status: 'pending',
+            cook_status: 'pending', // Pending until cook accepts
             assigned_at: new Date().toISOString(),
-          }, { onConflict: 'order_id,cook_id', ignoreDuplicates: true });
+          }]);
 
         if (assignError) {
           console.error('Failed to create cook assignment:', assignError);

@@ -167,14 +167,10 @@ const Checkout: React.FC = () => {
         const foodItemIds = itemsNeedingCook.map(item => item.food_item_id);
         
         if (foodItemIds.length > 0) {
-          const { data: cookDishes, error: cookDishesError } = await supabase
+          const { data: cookDishes } = await supabase
             .from('cook_dishes')
             .select('cook_id, food_item_id, cooks!inner(is_active, is_available)')
             .in('food_item_id', foodItemIds);
-
-          if (cookDishesError) {
-            console.error('Error fetching cook_dishes:', cookDishesError);
-          }
 
           // Pick first active+available cook for items without selection
           (cookDishes || []).forEach((cd: any) => {
@@ -186,50 +182,37 @@ const Checkout: React.FC = () => {
 
         // Get unique cook IDs to create assignments
         const uniqueCookIds = [...new Set(cartCookMap.values())];
-        console.log('[Checkout] Cook assignment - uniqueCookIds:', uniqueCookIds, 'cartCookMap:', Object.fromEntries(cartCookMap));
 
-        // Create cook assignments in order_assigned_cooks (use upsert to avoid conflict with triggers)
+        // Create cook assignments in order_assigned_cooks
         for (const cookId of uniqueCookIds) {
-          const { error: assignError } = await supabase
+          await supabase
             .from('order_assigned_cooks')
-            .upsert({
+            .insert({
               order_id: order.id,
               cook_id: cookId,
               cook_status: 'pending',
               assigned_at: new Date().toISOString(),
-            }, { onConflict: 'order_id,cook_id', ignoreDuplicates: true });
-          
-          if (assignError) {
-            console.error('Error creating cook assignment:', assignError);
-          }
+            });
         }
 
         // Update order items with assigned cook
         for (const [foodItemId, cookId] of cartCookMap.entries()) {
-          const { error: itemUpdateError } = await supabase
+          await supabase
             .from('order_items')
             .update({ assigned_cook_id: cookId })
             .eq('order_id', order.id)
             .eq('food_item_id', foodItemId);
-          
-          if (itemUpdateError) {
-            console.error('Error updating order item with cook:', itemUpdateError);
-          }
         }
 
         // Update order with first cook as primary assigned (for backwards compatibility)
         if (uniqueCookIds.length > 0) {
-          const { error: orderUpdateError } = await supabase
+          await supabase
             .from('orders')
             .update({ 
               assigned_cook_id: uniqueCookIds[0],
               cook_assignment_status: 'pending',
             })
             .eq('id', order.id);
-          
-          if (orderUpdateError) {
-            console.error('Error updating order with assigned cook:', orderUpdateError);
-          }
         }
       }
 

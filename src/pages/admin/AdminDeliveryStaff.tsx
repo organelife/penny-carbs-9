@@ -20,10 +20,9 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { 
-  Truck, Phone, MapPin, CheckCircle, XCircle, 
+  ArrowLeft, Truck, Phone, MapPin, CheckCircle, XCircle, 
   Bike, Car, Plus, Search, User, Loader2, X, Pencil, Trash2, Settings, Wallet 
 } from 'lucide-react';
-import AdminNavbar from '@/components/admin/AdminNavbar';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { DeliveryStaff } from '@/types/delivery';
 import DeliveryStaffWalletTab from '@/components/admin/delivery/DeliveryStaffWalletTab';
@@ -576,12 +575,16 @@ const AdminDeliveryStaff: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background pt-28 pb-6">
-      <AdminNavbar />
-
-      <main className="p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Delivery Staff</h2>
+    <div className="min-h-screen bg-background pb-6">
+      {/* Header */}
+      <header className="sticky top-0 z-50 w-full border-b bg-card/95 backdrop-blur">
+        <div className="container flex h-14 items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/admin')}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-lg font-semibold">Delivery Staff</h1>
+          </div>
           
           <Dialog open={isAddDialogOpen} onOpenChange={(open) => { setIsAddDialogOpen(open); if (!open) resetAddForm(); }}>
             <DialogTrigger asChild>
@@ -731,6 +734,7 @@ const AdminDeliveryStaff: React.FC = () => {
             </DialogContent>
           </Dialog>
         </div>
+      </header>
 
       {/* Edit/Manage Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setEditingStaff(null); }}>
@@ -914,7 +918,7 @@ const AdminDeliveryStaff: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      
+      <main className="container px-4 py-4">
         <Tabs defaultValue="pending" className="space-y-4">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="pending" className="relative">
