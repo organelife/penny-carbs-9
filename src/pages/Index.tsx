@@ -42,7 +42,7 @@ const Index: React.FC = () => {
         
         <PopularItems 
           serviceType="cloud_kitchen" 
-          title="👨‍🍳 Most Ordered from Cloud Kitchen" 
+          title="👨‍🍳 Most Ordered from Cloud Kitchen (പ്രാതൽ/ഊണ്/അത്താഴം)" 
           gradientClass="text-gradient-kitchen" 
           bgGradient="bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50 dark:from-blue-950/30 dark:via-cyan-950/20 dark:to-teal-950/10" 
         />
