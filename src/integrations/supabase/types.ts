@@ -331,6 +331,7 @@ export type Database = {
           allocated_by: string | null
           cook_id: string
           created_at: string
+          custom_price: number | null
           food_item_id: string
           id: string
           updated_at: string
@@ -340,6 +341,7 @@ export type Database = {
           allocated_by?: string | null
           cook_id: string
           created_at?: string
+          custom_price?: number | null
           food_item_id: string
           id?: string
           updated_at?: string
@@ -349,6 +351,7 @@ export type Database = {
           allocated_by?: string | null
           cook_id?: string
           created_at?: string
+          custom_price?: number | null
           food_item_id?: string
           id?: string
           updated_at?: string

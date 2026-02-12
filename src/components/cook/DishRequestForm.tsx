@@ -136,13 +136,13 @@ const DishRequestForm: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* My Allocated Dishes */}
+      {/* Request Dish Button */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">
-              <ChefHat className="h-4 w-4" />
-              My Allocated Dishes ({allocatedDishes?.length || 0})
+              <UtensilsCrossed className="h-4 w-4" />
+              Request New Dish
             </CardTitle>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -254,7 +254,6 @@ const DishRequestForm: React.FC = () => {
                           />
                         </div>
 
-
                         <FormField
                           control={form.control}
                           name="dish_is_vegetarian"
@@ -282,26 +281,6 @@ const DishRequestForm: React.FC = () => {
             </Dialog>
           </div>
         </CardHeader>
-        <CardContent>
-          {allocatedLoading ? (
-            <div className="space-y-2">
-              {[1, 2].map(i => <Skeleton key={i} className="h-12" />)}
-            </div>
-          ) : allocatedDishes?.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No dishes allocated yet. Request dishes to get started.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {allocatedDishes?.map(dish => (
-                <Badge key={dish.id} variant="secondary" className="py-1.5 px-3">
-                  {dish.food_item?.is_vegetarian && <Leaf className="h-3 w-3 mr-1 text-green-600" />}
-                  {dish.food_item?.name}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </CardContent>
       </Card>
 
       {/* My Requests */}
