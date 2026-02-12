@@ -8,6 +8,7 @@ export interface CookDish {
   allocated_by: string | null;
   created_at: string;
   updated_at: string;
+  custom_price: number | null;
   food_item?: {
     id: string;
     name: string;

@@ -58,6 +58,7 @@ const ItemDetail: React.FC = () => {
             .from('cook_dishes')
             .select(`
               cook_id,
+              custom_price,
               cooks!inner(id, kitchen_name, rating, total_orders, is_active, is_available)
             `)
             .eq('food_item_id', itemId);
@@ -70,11 +71,21 @@ const ItemDetail: React.FC = () => {
                 kitchen_name: cd.cooks.kitchen_name,
                 rating: cd.cooks.rating,
                 total_orders: cd.cooks.total_orders,
+                custom_price: cd.custom_price as number | null,
               }));
             setAvailableCooks(activeCooks);
-            // Auto-select the first cook if there's only one
+            // Auto-select the lowest price cook
             if (activeCooks.length === 1) {
               setSelectedCookId(activeCooks[0].cook_id);
+            } else if (activeCooks.length > 1) {
+              // Sort by price (custom_price or base price) and auto-select lowest
+              const basePrice = data.price;
+              const sorted = [...activeCooks].sort((a, b) => {
+                const priceA = a.custom_price ?? basePrice;
+                const priceB = b.custom_price ?? basePrice;
+                return priceA - priceB;
+              });
+              // Don't auto-select, but we'll use lowest price for display
             }
           }
         }
@@ -88,20 +99,51 @@ const ItemDetail: React.FC = () => {
     fetchItem();
   }, [itemId]);
 
-  // Calculate customer price with platform margin
+  const serviceTypes = (item as any)?.service_types || [];
+  const isHomemade = item?.service_type === 'homemade' || serviceTypes.includes('homemade');
+  const isIndoorEvents = item?.service_type === 'indoor_events';
+
+  // Calculate customer price - use selected cook's custom_price if available, else lowest cook price
   const customerPrice = useMemo(() => {
     if (!item) return 0;
     const itemWithMargin = item as FoodItemWithImages & { platform_margin_type?: string; platform_margin_value?: number };
     const marginType = (itemWithMargin.platform_margin_type || 'percent') as 'percent' | 'fixed';
     const marginValue = itemWithMargin.platform_margin_value || 0;
-    const margin = calculatePlatformMargin(item.price, marginType, marginValue);
-    return item.price + margin;
-  }, [item]);
+
+    // Determine the base price to use
+    let basePrice = item.price;
+    if (isHomemade && availableCooks.length > 0) {
+      if (selectedCookId) {
+        const selectedCook = availableCooks.find(c => c.cook_id === selectedCookId);
+        if (selectedCook?.custom_price != null) {
+          basePrice = selectedCook.custom_price;
+        }
+      } else {
+        // Show the lowest available cook price
+        const lowestPrice = Math.min(
+          ...availableCooks.map(c => c.custom_price ?? item.price)
+        );
+        basePrice = lowestPrice;
+      }
+    }
+
+    const margin = calculatePlatformMargin(basePrice, marginType, marginValue);
+    return basePrice + margin;
+  }, [item, selectedCookId, availableCooks, isHomemade]);
 
   const handleAddToCart = async () => {
     if (!item) return;
-    // For homemade items, pass the selected cook
-    await addToCart(item.id, quantity, selectedCookId);
+    // For homemade items without a selected cook, auto-select lowest price cook
+    let cookId = selectedCookId;
+    if (isHomemade && !cookId && availableCooks.length > 0) {
+      const sorted = [...availableCooks].sort((a, b) => {
+        const priceA = a.custom_price ?? item.price;
+        const priceB = b.custom_price ?? item.price;
+        return priceA - priceB;
+      });
+      cookId = sorted[0].cook_id;
+    }
+    await addToCart(item.id, quantity, cookId);
     navigate(-1);
   };
 
@@ -141,10 +183,6 @@ const ItemDetail: React.FC = () => {
     return a.display_order - b.display_order;
   }) || [];
 
-  const isIndoorEvents = item.service_type === 'indoor_events';
-  const serviceTypes = (item as any).service_types || [];
-  const isHomemade = item.service_type === 'homemade' || serviceTypes.includes('homemade');
-  
   // For homemade items with multiple cooks, require cook selection
   const needsCookSelection = isHomemade && availableCooks.length > 1 && !selectedCookId;
 
@@ -239,6 +277,7 @@ const ItemDetail: React.FC = () => {
             cooks={availableCooks}
             selectedCookId={selectedCookId}
             onSelectCook={setSelectedCookId}
+            basePrice={item.price}
           />
         )}
 

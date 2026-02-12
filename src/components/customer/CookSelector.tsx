@@ -8,15 +8,17 @@ export interface CookOption {
   kitchen_name: string;
   rating: number | null;
   total_orders: number | null;
+  custom_price: number | null;
 }
 
 interface CookSelectorProps {
   cooks: CookOption[];
   selectedCookId: string | null;
   onSelectCook: (cookId: string) => void;
+  basePrice?: number;
 }
 
-const CookSelector: React.FC<CookSelectorProps> = ({ cooks, selectedCookId, onSelectCook }) => {
+const CookSelector: React.FC<CookSelectorProps> = ({ cooks, selectedCookId, onSelectCook, basePrice }) => {
   if (cooks.length === 0) return null;
 
   // If only one cook, don't show selector (auto-select it)
@@ -30,35 +32,43 @@ const CookSelector: React.FC<CookSelectorProps> = ({ cooks, selectedCookId, onSe
       </div>
       <RadioGroup value={selectedCookId || ''} onValueChange={onSelectCook}>
         <div className="space-y-2">
-          {cooks.map((cook) => (
-            <div
-              key={cook.cook_id}
-              className={`flex items-center space-x-3 rounded-lg border p-3 transition-colors cursor-pointer ${
-                selectedCookId === cook.cook_id
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/50'
-              }`}
-              onClick={() => onSelectCook(cook.cook_id)}
-            >
-              <RadioGroupItem value={cook.cook_id} id={cook.cook_id} />
-              <Label htmlFor={cook.cook_id} className="flex-1 cursor-pointer">
-                <div className="font-medium">{cook.kitchen_name}</div>
-                {(cook.rating || cook.total_orders) && (
-                  <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
-                    {cook.rating && cook.rating > 0 && (
-                      <span className="flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                        {cook.rating.toFixed(1)}
-                      </span>
-                    )}
-                    {cook.total_orders && cook.total_orders > 0 && (
-                      <span>{cook.total_orders} orders</span>
+          {cooks.map((cook) => {
+            const displayPrice = cook.custom_price ?? basePrice;
+            return (
+              <div
+                key={cook.cook_id}
+                className={`flex items-center space-x-3 rounded-lg border p-3 transition-colors cursor-pointer ${
+                  selectedCookId === cook.cook_id
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-primary/50'
+                }`}
+                onClick={() => onSelectCook(cook.cook_id)}
+              >
+                <RadioGroupItem value={cook.cook_id} id={cook.cook_id} />
+                <Label htmlFor={cook.cook_id} className="flex-1 cursor-pointer">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{cook.kitchen_name}</span>
+                    {displayPrice != null && (
+                      <span className="font-bold text-primary">₹{displayPrice}</span>
                     )}
                   </div>
-                )}
-              </Label>
-            </div>
-          ))}
+                  {(cook.rating || cook.total_orders) && (
+                    <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
+                      {cook.rating && cook.rating > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                          {cook.rating.toFixed(1)}
+                        </span>
+                      )}
+                      {cook.total_orders && cook.total_orders > 0 && (
+                        <span>{cook.total_orders} orders</span>
+                      )}
+                    </div>
+                  )}
+                </Label>
+              </div>
+            );
+          })}
         </div>
       </RadioGroup>
     </div>

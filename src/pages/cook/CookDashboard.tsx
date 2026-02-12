@@ -38,6 +38,7 @@ import {
 import { format } from 'date-fns';
 import type { CookStatus } from '@/types/cook';
 import DishRequestForm from '@/components/cook/DishRequestForm';
+import CookAllocatedDishes from '@/components/cook/CookAllocatedDishes';
 import NewCookOrderAlert from '@/components/cook/NewCookOrderAlert';
 import NotificationPermissionBanner from '@/components/NotificationPermissionBanner';
 
@@ -423,6 +424,7 @@ const CookDashboard: React.FC = () => {
 
           {/* My Dishes Tab */}
           <TabsContent value="dishes" className="space-y-4 mt-4">
+            <CookAllocatedDishes />
             <DishRequestForm />
           </TabsContent>
 
