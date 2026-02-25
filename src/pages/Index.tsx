@@ -47,13 +47,12 @@ const Index: React.FC = () => {
           bgGradient="bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50 dark:from-blue-950/30 dark:via-cyan-950/20 dark:to-teal-950/10" 
         />
         
-        {/* Homemade Favorites - Coming Soon, hidden until feature launches */}
-        {/* <PopularItems 
+        <PopularItems 
           serviceType="homemade" 
           title="Homemade Favorites (വീട്ടിലെ ഭക്ഷണങ്ങൾ)" 
           gradientClass="text-gradient-homemade" 
           bgGradient="bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950/30 dark:via-emerald-950/20 dark:to-teal-950/10" 
-        /> */}
+        />
       </main>
 
       <CartButton />

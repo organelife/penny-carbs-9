@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Plus, Clock, Search, Leaf, Filter } from 'lucide-react';
+import { ArrowLeft, Plus, Clock, Search, Leaf, Filter, Lock } from 'lucide-react';
 import CartButton from '@/components/customer/CartButton';
 import BottomNav from '@/components/customer/BottomNav';
 import { calculatePlatformMargin } from '@/lib/priceUtils';
@@ -21,6 +21,7 @@ interface HomemadeItem {
   description: string | null;
   price: number;
   is_vegetarian: boolean;
+  is_coming_soon: boolean;
   preparation_time_minutes: number | null;
   category_id: string | null;
   platform_margin_type: string | null;
@@ -52,13 +53,9 @@ const HomemadeOrder: React.FC = () => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // 1. Get all food_item_ids that have at least one active+available cook allocated
         const { data: cookDishes, error: cookDishesError } = await supabase
           .from('cook_dishes')
-          .select(`
-            food_item_id,
-            cooks!inner(is_active, is_available)
-          `);
+          .select(`food_item_id, cooks!inner(is_active, is_available)`);
 
         if (cookDishesError) throw cookDishesError;
 
@@ -74,12 +71,11 @@ const HomemadeOrder: React.FC = () => {
           return;
         }
 
-        // 2. Fetch those food items that are homemade + available + allocated to a cook
         const { data: foodItems, error: itemsError } = await supabase
           .from('food_items')
           .select(`
             id, name, description, price, is_vegetarian, preparation_time_minutes,
-            category_id, platform_margin_type, platform_margin_value,
+            category_id, platform_margin_type, platform_margin_value, is_coming_soon,
             images:food_item_images(id, image_url, is_primary),
             category:food_categories(id, name)
           `)
@@ -92,7 +88,6 @@ const HomemadeOrder: React.FC = () => {
 
         setItems((foodItems || []) as unknown as HomemadeItem[]);
 
-        // Extract unique categories from results
         const cats = new Map<string, string>();
         (foodItems || []).forEach((item: any) => {
           if (item.category?.id && item.category?.name) {
@@ -112,11 +107,13 @@ const HomemadeOrder: React.FC = () => {
 
   const handleAddToCart = async (e: React.MouseEvent, item: HomemadeItem) => {
     e.stopPropagation();
+    if (item.is_coming_soon) return;
     requireAuth(() => addToCart(item.id));
   };
 
-  const handleItemClick = (itemId: string) => {
-    requireAuth(() => navigate(`/item/${itemId}`));
+  const handleItemClick = (item: HomemadeItem) => {
+    if (item.is_coming_soon) return;
+    requireAuth(() => navigate(`/item/${item.id}`));
   };
 
   const filteredItems = items
@@ -136,7 +133,6 @@ const HomemadeOrder: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-card/95 backdrop-blur">
         <div className="flex h-14 items-center gap-3 px-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -146,18 +142,116 @@ const HomemadeOrder: React.FC = () => {
         </div>
       </header>
 
-      {/* Coming Soon */}
-      <main className="flex flex-col items-center justify-center px-4 py-24 text-center">
-        <span className="text-7xl">🏠</span>
-        <h2 className="mt-6 text-2xl font-bold">Coming Soon!</h2>
-        <p className="mt-2 max-w-sm text-muted-foreground">
-          Homemade food delivery is launching soon. Stay tuned for fresh, home-cooked meals delivered to your doorstep!
-        </p>
-        <Button className="mt-6" onClick={() => navigate('/')}>
-          Back to Home
-        </Button>
+      <div className="p-4 space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search items..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="flex gap-2">
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-[140px]">
+              <Filter className="h-4 w-4 mr-1" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {categories.map(cat => (
+                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">Name</SelectItem>
+              <SelectItem value="price-low">Price: Low</SelectItem>
+              <SelectItem value="price-high">Price: High</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <main className="px-4 pb-4">
+        {isLoading ? (
+          <div className="grid grid-cols-2 gap-3">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-56 rounded-xl" />)}
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <span className="text-5xl">🍽️</span>
+            <p className="mt-4 text-muted-foreground">No items found</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {filteredItems.map(item => {
+              const primaryImage = item.images?.find(img => img.is_primary) || item.images?.[0];
+              const isComingSoon = item.is_coming_soon;
+
+              return (
+                <Card
+                  key={item.id}
+                  className={`overflow-hidden transition-all ${isComingSoon ? 'opacity-75 cursor-default' : 'cursor-pointer hover:shadow-lg'}`}
+                  onClick={() => handleItemClick(item)}
+                >
+                  <div className="relative h-28 w-full overflow-hidden bg-secondary">
+                    {primaryImage ? (
+                      <img src={primaryImage.image_url} alt={item.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-4xl">🍽️</div>
+                    )}
+                    {isComingSoon && (
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <Badge className="bg-amber-500 text-white border-0">Coming Soon</Badge>
+                      </div>
+                    )}
+                    {item.is_vegetarian && (
+                      <span className="absolute right-2 top-2">
+                        <Leaf className="h-4 w-4 text-green-600" />
+                      </span>
+                    )}
+                  </div>
+                  <CardContent className="p-3">
+                    <h3 className="line-clamp-2 text-sm font-medium leading-tight">{item.name}</h3>
+                    {item.preparation_time_minutes && (
+                      <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        <span>{item.preparation_time_minutes} min</span>
+                      </div>
+                    )}
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="font-semibold text-foreground">₹{getCustomerPrice(item).toFixed(0)}</span>
+                      {isComingSoon ? (
+                        <Button size="sm" variant="outline" className="h-7 rounded-full text-xs px-2 opacity-50" disabled>
+                          <Lock className="h-3 w-3 mr-1" /> Soon
+                        </Button>
+                      ) : (
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-7 w-7 rounded-full border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                          onClick={(e) => handleAddToCart(e, item)}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </main>
 
+      <CustomerLoginDialog open={showLoginDialog} onOpenChange={setShowLoginDialog} onLoginSuccess={onLoginSuccess} />
+      <CartButton />
       <BottomNav />
     </div>
   );

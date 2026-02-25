@@ -13,7 +13,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel';
-import { ArrowLeft, Plus, Minus, Clock, Leaf, ShoppingCart, CalendarHeart } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Clock, Leaf, ShoppingCart, CalendarHeart, Lock } from 'lucide-react';
 import { calculatePlatformMargin } from '@/lib/priceUtils';
 import CookSelector, { type CookOption } from '@/components/customer/CookSelector';
 
@@ -102,6 +102,7 @@ const ItemDetail: React.FC = () => {
   const serviceTypes = (item as any)?.service_types || [];
   const isHomemade = item?.service_type === 'homemade' || serviceTypes.includes('homemade');
   const isIndoorEvents = item?.service_type === 'indoor_events';
+  const isComingSoon = (item as any)?.is_coming_soon === true;
 
   // Calculate customer price - use selected cook's custom_price if available, else lowest cook price
   const customerPrice = useMemo(() => {
@@ -296,8 +297,12 @@ const ItemDetail: React.FC = () => {
 
       {/* Bottom Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 border-t bg-card p-4 shadow-lg">
-        {isIndoorEvents ? (
-          // Indoor Events - Show Book Event button (no cart)
+        {isComingSoon ? (
+          <Button className="w-full h-12 text-base" disabled>
+            <Lock className="mr-2 h-5 w-5" />
+            Coming Soon
+          </Button>
+        ) : isIndoorEvents ? (
           <Button 
             className="w-full h-12 text-base bg-indoor-events hover:bg-indoor-events/90" 
             onClick={() => navigate('/indoor-events')}
@@ -306,7 +311,6 @@ const ItemDetail: React.FC = () => {
             Book Event with This Dish
           </Button>
         ) : currentCartQuantity > 0 ? (
-          // Already in cart - show update controls
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">
               Already in cart
@@ -340,7 +344,6 @@ const ItemDetail: React.FC = () => {
             </div>
           </div>
         ) : (
-          // Not in cart - show add to cart
           <div className="flex items-center gap-4">
             <div className="flex items-center rounded-lg border">
               <Button
