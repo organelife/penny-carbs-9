@@ -191,7 +191,7 @@ const HomeDeliveryItems: React.FC<HomeDeliveryItemsProps> = ({ onBack }) => {
                           onCheckedChange={(checked) =>
                             toggleItem.mutate({ itemId: item.id, isAvailable: checked })
                           }
-                          disabled={toggleItem.isPending}
+                          disabled
                         />
                       </TableCell>
                       <TableCell className="text-right">
