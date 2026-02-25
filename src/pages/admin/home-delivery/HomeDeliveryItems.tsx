@@ -122,6 +122,7 @@ const HomeDeliveryItems: React.FC<HomeDeliveryItemsProps> = ({ onBack }) => {
                     <TableHead>Set Size</TableHead>
                     <TableHead>Min Sets</TableHead>
                     <TableHead>Prep Time</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
                     <TableHead className="text-right">Available</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -178,6 +179,11 @@ const HomeDeliveryItems: React.FC<HomeDeliveryItemsProps> = ({ onBack }) => {
                         ) : (
                           <span className="text-muted-foreground text-xs">—</span>
                         )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200">
+                          Coming Soon
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <Switch
