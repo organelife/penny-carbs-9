@@ -830,6 +830,7 @@ export type Database = {
           discount_percent: number | null
           id: string
           is_available: boolean
+          is_coming_soon: boolean
           is_featured: boolean | null
           is_vegetarian: boolean
           max_images: number
@@ -860,6 +861,7 @@ export type Database = {
           discount_percent?: number | null
           id?: string
           is_available?: boolean
+          is_coming_soon?: boolean
           is_featured?: boolean | null
           is_vegetarian?: boolean
           max_images?: number
@@ -890,6 +892,7 @@ export type Database = {
           discount_percent?: number | null
           id?: string
           is_available?: boolean
+          is_coming_soon?: boolean
           is_featured?: boolean | null
           is_vegetarian?: boolean
           max_images?: number

@@ -9,7 +9,7 @@ import type { FoodItemWithImages, ServiceType } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Clock, ChevronRight } from 'lucide-react';
+import { Plus, Clock, ChevronRight, Lock } from 'lucide-react';
 import { calculatePlatformMargin } from '@/lib/priceUtils';
 import { useCookAllocatedItemIds } from '@/hooks/useCookAllocatedItems';
 import { useLowestCookPrices } from '@/hooks/useLowestCookPrices';
@@ -156,20 +156,21 @@ const PopularItems: React.FC<PopularItemsProps> = ({
         {items.map((item) => {
           const primaryImage = item.images?.find((img) => img.is_primary) || item.images?.[0];
           const isIndoorEvents = serviceType === 'indoor_events';
-
           const isCloudKitchen = serviceType === 'cloud_kitchen';
+          const isComingSoon = (item as any).is_coming_soon === true;
 
           return (
             <Card
               key={item.id}
-              className="w-40 flex-shrink-0 cursor-pointer overflow-hidden transition-all hover:shadow-lg"
-              onClick={() =>
+              className={`w-40 flex-shrink-0 overflow-hidden transition-all ${isComingSoon ? 'opacity-75 cursor-default' : 'cursor-pointer hover:shadow-lg'}`}
+              onClick={() => {
+                if (isComingSoon) return;
                 isIndoorEvents
                   ? requireAuth(() => navigate('/indoor-events'))
                   : isCloudKitchen
                     ? navigate('/cloud-kitchen')
-                    : handleItemClick(item.id)
-              }
+                    : handleItemClick(item.id);
+              }}
             >
               <div className="relative h-28 w-full overflow-hidden bg-secondary">
                 {primaryImage ? (
@@ -181,9 +182,15 @@ const PopularItems: React.FC<PopularItemsProps> = ({
                 ) : (
                   <div className="flex h-full items-center justify-center text-4xl">🍽️</div>
                 )}
-                <span className="absolute left-2 top-2 rounded-full bg-card/90 px-2 py-0.5 text-xs font-medium">
-                  {serviceTypeLabels[serviceType]}
-                </span>
+                {isComingSoon ? (
+                  <span className="absolute left-2 top-2 rounded-full bg-amber-500/90 px-2 py-0.5 text-xs font-medium text-white">
+                    Coming Soon
+                  </span>
+                ) : (
+                  <span className="absolute left-2 top-2 rounded-full bg-card/90 px-2 py-0.5 text-xs font-medium">
+                    {serviceTypeLabels[serviceType]}
+                  </span>
+                )}
               </div>
               <CardContent className="p-3">
                 <h3 className="line-clamp-2 text-sm font-medium leading-tight">{item.name}</h3>
@@ -195,7 +202,17 @@ const PopularItems: React.FC<PopularItemsProps> = ({
                 )}
                 <div className="mt-2 flex items-center justify-between">
                   <span className="font-semibold text-foreground">₹{getCustomerPrice(item, lowestCookPrices).toFixed(0)}</span>
-                  {isIndoorEvents ? (
+                  {isComingSoon ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 rounded-full text-xs px-2 opacity-50 cursor-not-allowed"
+                      disabled
+                    >
+                      <Lock className="h-3 w-3 mr-1" />
+                      Soon
+                    </Button>
+                  ) : isIndoorEvents ? (
                     <Button
                       size="sm"
                       variant="outline"

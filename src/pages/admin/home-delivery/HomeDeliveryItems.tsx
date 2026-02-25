@@ -21,7 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ArrowLeft, Leaf, Clock, UtensilsCrossed, Edit2 } from 'lucide-react';
-import { useHomeDeliveryItems, useToggleHomeDeliveryItem, useUpdateHomeDeliveryItemSet, type HomeDeliveryItem } from '@/hooks/useHomeDeliveryItems';
+import { useHomeDeliveryItems, useToggleHomeDeliveryItem, useToggleComingSoon, useUpdateHomeDeliveryItemSet, type HomeDeliveryItem } from '@/hooks/useHomeDeliveryItems';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface HomeDeliveryItemsProps {
@@ -31,6 +31,7 @@ interface HomeDeliveryItemsProps {
 const HomeDeliveryItems: React.FC<HomeDeliveryItemsProps> = ({ onBack }) => {
   const { data: items, isLoading } = useHomeDeliveryItems();
   const toggleItem = useToggleHomeDeliveryItem();
+  const toggleComingSoon = useToggleComingSoon();
   const updateItemSet = useUpdateHomeDeliveryItemSet();
 
   const [editItemOpen, setEditItemOpen] = useState(false);
@@ -122,7 +123,7 @@ const HomeDeliveryItems: React.FC<HomeDeliveryItemsProps> = ({ onBack }) => {
                     <TableHead>Set Size</TableHead>
                     <TableHead>Min Sets</TableHead>
                     <TableHead>Prep Time</TableHead>
-                    <TableHead className="text-right">Status</TableHead>
+                    <TableHead className="text-right">Coming Soon</TableHead>
                     <TableHead className="text-right">Available</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -181,9 +182,12 @@ const HomeDeliveryItems: React.FC<HomeDeliveryItemsProps> = ({ onBack }) => {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200">
-                          Coming Soon
-                        </Badge>
+                        <Switch
+                          checked={item.is_coming_soon}
+                          onCheckedChange={(checked) =>
+                            toggleComingSoon.mutate({ itemId: item.id, isComingSoon: checked })
+                          }
+                        />
                       </TableCell>
                       <TableCell className="text-right">
                         <Switch
@@ -191,7 +195,7 @@ const HomeDeliveryItems: React.FC<HomeDeliveryItemsProps> = ({ onBack }) => {
                           onCheckedChange={(checked) =>
                             toggleItem.mutate({ itemId: item.id, isAvailable: checked })
                           }
-                          disabled
+                          disabled={item.is_coming_soon}
                         />
                       </TableCell>
                       <TableCell className="text-right">

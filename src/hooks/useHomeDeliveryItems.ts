@@ -9,6 +9,7 @@ export interface HomeDeliveryItem {
   price: number;
   is_vegetarian: boolean;
   is_available: boolean;
+  is_coming_soon: boolean;
   preparation_time_minutes: number | null;
   category_id: string | null;
   category_name?: string;
@@ -34,6 +35,7 @@ export function useHomeDeliveryItems() {
           price,
           is_vegetarian,
           is_available,
+          is_coming_soon,
           preparation_time_minutes,
           category_id,
           set_size,
@@ -88,7 +90,7 @@ export function useToggleHomeDeliveryItem() {
     mutationFn: async ({ itemId, isAvailable }: { itemId: string; isAvailable: boolean }) => {
       const { error } = await supabase
         .from('food_items')
-        .update({ is_available: isAvailable })
+        .update({ is_available: isAvailable } as any)
         .eq('id', itemId);
 
       if (error) throw error;
@@ -100,6 +102,32 @@ export function useToggleHomeDeliveryItem() {
     onError: (error) => {
       toast({
         title: 'Failed to update item',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+export function useToggleComingSoon() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ itemId, isComingSoon }: { itemId: string; isComingSoon: boolean }) => {
+      const { error } = await supabase
+        .from('food_items')
+        .update({ is_coming_soon: isComingSoon } as any)
+        .eq('id', itemId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['home-delivery-items'] });
+      toast({ title: 'Coming Soon status updated' });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Failed to update status',
         description: error.message,
         variant: 'destructive',
       });
